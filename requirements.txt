@@ -1,0 +1,7 @@
+MyApplication
+Flask
+requests
+the-new-hotness
+pymorphous
+Flask-SQLAlchemy
+
