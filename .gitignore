@@ -1,0 +1,8 @@
+__pycache__
+*celerybeat*
+start_all_celery.bat
+stop_all_celery.bat
+celery_sync.log
+.venv
+dump.rdb
+instance/

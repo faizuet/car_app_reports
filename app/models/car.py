@@ -1,19 +1,15 @@
-from app.extensions import db
+from app import db
 
 class Car(db.Model):
+    __tablename__ = 'cars'
+
     id = db.Column(db.Integer, primary_key=True)
-    object_id = db.Column(db.String(100), unique=True, nullable=False)
+    parse_id = db.Column(db.String(50), unique=True, nullable=False)
+    name = db.Column(db.String(100))
     make = db.Column(db.String(100))
     model = db.Column(db.String(100))
     year = db.Column(db.Integer)
-    created_at = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime(timezone=True))
 
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "object_id": self.object_id,
-            "make": self.make,
-            "model": self.model,
-            "year": self.year,
-            "created_at": self.created_at,
-        }
+    def __repr__(self):
+        return f"<Car {self.name or self.make}>"

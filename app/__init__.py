@@ -1,22 +1,29 @@
 from flask import Flask
-from app.extensions import db, jwt, migrate  # ✅
-from app.routes.car_routes import car_bp
-from app.routes.auth_routes import auth_bp
-from app.models import user, car  # ✅ make sure models are imported
+from app.config import Config
+from app.extensions import db, ma, jwt, migrate
+import os
 
-def create_app():
+def create_app(config_class=Config):
     app = Flask(__name__)
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///../instance/cars.db'
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['JWT_SECRET_KEY'] = 'your-secret-key'
+    app.config.from_object(config_class)
+
+    if os.getenv("FLASK_ENV") == "development":
+
+        app.config["broker_url"] = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
+        app.config["result_backend"] = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+    else:
+
+        app.config["broker_url"] = os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0")
+        app.config["result_backend"] = os.getenv("CELERY_RESULT_BACKEND", "redis://redis:6379/0")
 
     db.init_app(app)
+    ma.init_app(app)
     jwt.init_app(app)
-    migrate.init_app(app, db)  # ✅
+    migrate.init_app(app, db)
 
+    from app.routes.car_routes import car_bp
+    from app.routes.auth_routes import auth_bp
     app.register_blueprint(car_bp)
     app.register_blueprint(auth_bp)
 
     return app
-
-# this is comment
