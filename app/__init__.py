@@ -7,14 +7,8 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
-    if os.getenv("FLASK_ENV") == "development":
-
-        app.config["broker_url"] = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-        app.config["result_backend"] = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
-    else:
-
-        app.config["broker_url"] = os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0")
-        app.config["result_backend"] = os.getenv("CELERY_RESULT_BACKEND", "redis://redis:6379/0")
+    app.config["broker_url"] = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
+    app.config["result_backend"] = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
 
     db.init_app(app)
     ma.init_app(app)
@@ -27,3 +21,4 @@ def create_app(config_class=Config):
     app.register_blueprint(auth_bp)
 
     return app
+

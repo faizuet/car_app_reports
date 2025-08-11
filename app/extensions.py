@@ -7,3 +7,4 @@ db = SQLAlchemy()
 ma = Marshmallow()
 jwt = JWTManager()
 migrate = Migrate()
+

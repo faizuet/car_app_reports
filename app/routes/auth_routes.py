@@ -1,26 +1,28 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify
 from app.models.user import User
 from app.extensions import db
 from flask_jwt_extended import create_access_token
-from app.schema.user_schema import user_schema, user_response_schema
+from webargs.flaskparser import use_kwargs
 from marshmallow import ValidationError
+
+from app.schema.user_schema import (
+    user_response_schema,
+    UserRequestSchema
+)
 
 auth_bp = Blueprint('auth', __name__, url_prefix="/auth")
 
-@auth_bp.route('/signup', methods=['POST'])
-def signup():
-    try:
-        data = user_schema.load(request.get_json())
-    except ValidationError as err:
-        return jsonify({"errors": err.messages}), 400
 
-    if User.query.filter_by(username=data['username']).first():
+@auth_bp.route('/signup', methods=['POST'])
+@use_kwargs(UserRequestSchema, location="json")
+def signup(username, email, password):
+    if User.query.filter_by(username=username).first():
         return jsonify({"msg": "Username already exists"}), 400
-    if User.query.filter_by(email=data['email']).first():
+    if User.query.filter_by(email=email).first():
         return jsonify({"msg": "Email already registered"}), 400
 
-    user = User(username=data['username'], email=data['email'])
-    user.set_password(data['password'])
+    user = User(username=username, email=email)
+    user.set_password(password)
     db.session.add(user)
     db.session.commit()
 
@@ -31,14 +33,10 @@ def signup():
 
 
 @auth_bp.route('/login', methods=['POST'])
-def login():
-    try:
-        data = user_schema.load(request.get_json(), partial=("email",))
-    except ValidationError as err:
-        return jsonify({"errors": err.messages}), 400
-
-    user = User.query.filter_by(username=data['username']).first()
-    if user and user.check_password(data['password']):
+@use_kwargs(UserRequestSchema(only=("username", "password")), location="json")
+def login(username, password):
+    user = User.query.filter_by(username=username).first()
+    if user and user.check_password(password):
         access_token = create_access_token(identity=user.username)
         return jsonify({
             "access_token": access_token,
@@ -46,3 +44,5 @@ def login():
         }), 200
 
     return jsonify({"msg": "Invalid credentials"}), 401
+
+
