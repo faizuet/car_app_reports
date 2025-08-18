@@ -12,10 +12,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-instance/
 *.db
-*.sqlite
-*.sqlite3
 celerybeat-schedule
 celerybeat.pid
 celery_sync.log

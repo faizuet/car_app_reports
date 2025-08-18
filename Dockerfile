@@ -1,29 +1,33 @@
+# Use official Python 3.11 slim image
 FROM python:3.11-slim
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
 
 # Set work directory
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
-    netcat-openbsd \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        default-libmysqlclient-dev \
+        gcc \
+        curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
-COPY requirements.txt .
+# Copy requirements first for caching
+COPY requirements.txt /app/
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy project files
-COPY . .
+# Copy the rest of the application code
+COPY . /app/
 
-# Ensure wait-for-it.sh is executable
-RUN chmod +x wait-for-it.sh
+# Make scripts executable
+RUN chmod +x /app/scripts/*.sh
 
-# Set default env vars
-ENV PYTHONUNBUFFERED=1 \
-    FLASK_APP=run.py \
-    FLASK_ENV=development
+# Default command (can be overridden in docker-compose)
+CMD ["./scripts/start.sh"]
 
-# Default command (overridden by docker-compose)
-CMD ["flask", "run", "--host=0.0.0.0"]

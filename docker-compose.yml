@@ -1,86 +1,93 @@
-version: "3.8"
+version: "3.9"
 
 services:
   web:
     build: .
-    container_name: car_web
-    command: sh -c "./wait-for-it.sh db:3306 -- ./wait-for-it.sh redis:6379 -- flask run --host=0.0.0.0"
-    ports:
-      - "5000:5000"
-    environment:
-      - FLASK_APP=run.py
-      - FLASK_ENV=development
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - DATABASE_URL=mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}
-      - SQLALCHEMY_DATABASE_URI=mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}
-    depends_on:
-      - redis
-      - db
+    command: ./scripts/start.sh
     volumes:
       - .:/app
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - MYSQL_HOST=db
+      - REDIS_HOST=redis
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   celery_worker:
     build: .
-    container_name: car_celery_worker
-    command: sh -c "./wait-for-it.sh db:3306 -- ./wait-for-it.sh redis:6379 -- celery -A tasks.celery_app worker --loglevel=info --pool=solo"
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - DATABASE_URL=mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}
-      - SQLALCHEMY_DATABASE_URI=mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}
-    depends_on:
-      - redis
-      - db
+    command: ./scripts/start-celery.sh
     volumes:
       - .:/app
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - MYSQL_HOST=db
+      - REDIS_HOST=redis
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   celery_beat:
     build: .
-    container_name: car_celery_beat
-    command: sh -c "./wait-for-it.sh db:3306 -- ./wait-for-it.sh redis:6379 -- celery -A tasks.celery_app.celery beat --loglevel=info"
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - DATABASE_URL=mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}
-      - SQLALCHEMY_DATABASE_URI=mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}
-    depends_on:
-      - redis
-      - db
+    command: ./scripts/beat-celery.sh
     volumes:
       - .:/app
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - MYSQL_HOST=db
+      - REDIS_HOST=redis
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   redis:
-    image: redis:6
-    container_name: car_redis
+    image: redis:7
+    restart: unless-stopped
     ports:
       - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
 
   db:
-    image: mysql:8.0
-    container_name: car_mysql
-    restart: always
+    image: mysql:8
+    container_name: car_app_reports-db
+    restart: unless-stopped
+    env_file:
+      - .env
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-      TZ: "Asia/Karachi"
+      MYSQL_ALLOW_EMPTY_PASSWORD: "no"
     ports:
       - "3306:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
-    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
+      test: ["CMD", "mysqladmin", "ping", "-h", "db", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
+    volumes:
+      - car_app_reports_data:/var/lib/mysql
 
 volumes:
-  mysql_data:
+  car_app_reports_data:
+

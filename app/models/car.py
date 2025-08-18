@@ -8,41 +8,68 @@ class Car(db.Model):
         db.UniqueConstraint('objectId', name='uq_cars_object_id'),
     )
 
-    ID_KEY = 'id'
-    CAR_ID_KEY = 'car_id'
-    NAME_KEY = 'name'
-    MAKE_KEY = 'make'
-    MODEL_KEY = 'model'
-    YEAR_KEY = 'year'
-    CATEGORY_KEY = 'category'
-    CREATED_AT_KEY = 'created_at'
-
     id = db.Column(db.Integer, primary_key=True)
     car_id = db.Column(db.String(50), unique=True, nullable=False)
-    objectId = db.Column(db.String, nullable=True)
-    name = db.Column(db.String(100), nullable=True)
+    objectId = db.Column(db.String(255), nullable=False, unique=True)
     make = db.Column(db.String(100), nullable=True)
     model = db.Column(db.String(100), nullable=True)
     year = db.Column(db.Integer, nullable=True)
     category = db.Column(db.String(100), nullable=True)
+
     created_at = db.Column(
         db.DateTime(timezone=True),
         nullable=False,
         default=lambda: datetime.now(timezone.utc)
     )
+    updated_at = db.Column(
+        db.DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc)
+    )
 
-    def __repr__(self):
-        return f"<Car {self.name or self.make}>"
+    models = db.relationship(
+        "CarModel",
+        back_populates="car",
+        cascade="all, delete-orphan"
+    )
 
-    def to_json(self):
-        return {
-            self.ID_KEY: self.id,
-            self.CAR_ID_KEY: self.car_id,
-            self.NAME_KEY: self.name,
-            self.MAKE_KEY: self.make,
-            self.MODEL_KEY: self.model,
-            self.YEAR_KEY: self.year,
-            self.CATEGORY_KEY: self.category,
-            self.CREATED_AT_KEY: self.created_at.isoformat() if self.created_at else None
-        }
+    @staticmethod
+    def generate_car_id():
+        last_car = Car.query.order_by(Car.id.desc()).first()
+        if last_car and last_car.car_id:
+            try:
+                last_num = int(last_car.car_id.replace("CAR-", ""))
+            except ValueError:
+                last_num = last_car.id
+        else:
+            last_num = 0
+        return f"CAR-{last_num + 1:04d}"
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if not self.car_id:
+            self.car_id = Car.generate_car_id()
+
+
+class CarModel(db.Model):
+    __tablename__ = 'car_models'
+
+    id = db.Column(db.Integer, primary_key=True)
+    model_name = db.Column(db.String(100), nullable=False)
+    trim = db.Column(db.String(100), nullable=True)
+    year = db.Column(db.Integer, nullable=True)
+
+    created_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = db.Column(
+        db.DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+    car_id = db.Column(db.Integer, db.ForeignKey('cars.id'), nullable=False)
+    car = db.relationship("Car", back_populates="models")
 
