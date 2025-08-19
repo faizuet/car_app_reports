@@ -1,41 +1,28 @@
-import logging
 import os
+import logging
 from celery import Celery
-from celery.schedules import crontab
 from dotenv import load_dotenv
-
+from datetime import timedelta
 
 load_dotenv()
 
-CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
-CELERY_TIMEZONE = os.getenv("CELERY_TIMEZONE", "Asia/Karachi")
-CELERY_ENABLE_UTC = False
-
 celery = Celery(
-    "car_tasks",
-    broker=CELERY_BROKER_URL,
-    backend=CELERY_RESULT_BACKEND,
-    include=["car_tasks.sync_cars"],
-)
-
-celery.conf.update(
-    timezone=CELERY_TIMEZONE,
-    enable_utc=CELERY_ENABLE_UTC,
-    task_serializer="json",
-    result_serializer="json",
-    accept_content=["json"],
-    task_always_eager=False,
+    'car_tasks',
+    broker=os.getenv('CELERY_BROKER_URL', 'redis://127.0.0.1:6379/0'),
+    backend=os.getenv('CELERY_RESULT_BACKEND', 'redis://127.0.0.1:6379/0'),
+    include=['car_tasks.sync_cars']
 )
 
 celery.conf.beat_schedule = {
-    "sync-cars-every-5-mins": {
-        "task": "car_tasks.sync_cars.fetch_and_store_cars",
-        "schedule": crontab(minute="*/5"),
-    }
+    'sync_car_data_every_5_min': {
+        'task': 'car_tasks.sync_cars.sync_car_data',
+        'schedule': timedelta(minutes=5),
+    },
 }
+
+celery.conf.timezone = os.getenv('CELERY_TIMEZONE', 'UTC')
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-logger.info("Celery app ready. Tasks will only run when scheduled or queued.")
+logger.info("Celery app initialized. Tasks will run only when queued or scheduled.")
 

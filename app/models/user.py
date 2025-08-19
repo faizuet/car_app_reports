@@ -1,23 +1,26 @@
-from app.extensions import db
+from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy.sql import func
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, timezone
+from app.models.db import Base
 
-class User(db.Model):
+class User(Base):
     __tablename__ = "users"
 
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(64), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    _password_hash = db.Column("password", db.String(128), nullable=False)
-    created_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+    id = Column(Integer, primary_key=True)
+    username = Column(String(64), unique=True, nullable=False)
+    email = Column(String(120), unique=True, nullable=False)
+    _password_hash = Column("password", String(128), nullable=False)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
         nullable=False
     )
-    updated_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
         nullable=False
     )
 
@@ -27,14 +30,8 @@ class User(db.Model):
 
     @password.setter
     def password(self, plaintext_password):
-        """Allows setting password via: user.password = 'mypassword'"""
         self._password_hash = generate_password_hash(plaintext_password)
 
-    def set_password(self, plaintext_password):
-        """Explicit method for compatibility with your auth route"""
-        self._password_hash = generate_password_hash(plaintext_password)
-
-    def check_password(self, password):
-        """Verify a password against the stored hash"""
-        return check_password_hash(self._password_hash, password)
+    def check_password(self, plaintext_password):
+        return check_password_hash(self._password_hash, plaintext_password)
 

@@ -1,55 +1,86 @@
 import logging
 from flask_smorest import Blueprint, abort
 from flask_jwt_extended import create_access_token
-from marshmallow import Schema, fields
-
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from app.extensions import db
 from app.models.user import User
-from app.utils.auth import get_user_by_email, commit_instance
-from app.schema.user_schema import UserSchema, LoginSchema, user_response_schema
+from app.schema.user_schema import (
+    UserSchema,
+    user_response_schema,
+    user_login_schema
+)
 
-auth_bp = Blueprint("auth", __name__)
 logger = logging.getLogger(__name__)
-
-
-class SignupResponseSchema(Schema):
-    message = fields.String(required=True)
-    user = fields.Nested(user_response_schema, required=True)
-
-
-class TokenSchema(Schema):
-    access_token = fields.String(required=True)
+auth_bp = Blueprint("auth", __name__, description="Authentication operations")
 
 
 @auth_bp.route("/signup", methods=["POST"])
 @auth_bp.arguments(UserSchema)
-@auth_bp.response(201, SignupResponseSchema)
+@auth_bp.response(201, user_response_schema)
 def signup(data):
-    if get_user_by_email(data["email"]):
-        logger.info(f"Signup blocked — email exists: {data['email']}")
-        abort(409, message="User already exists")
+    try:
+        username = data["username"].strip()
+        email = data["email"].strip()
+        password = data["password"].strip()
 
-    user = User(username=data["username"], email=data["email"])
-    user.password = data["password"]
 
-    success, error = commit_instance(user)
-    if success:
-        logger.info(f"New user created: {user.email} (id={user.id})")
-        return {"message": "User created successfully", "user": user}
+        existing_user = db.session.query(User).filter(
+            (User.username == username) | (User.email == email)
+        ).first()
+        if existing_user:
+            abort(409, message="Username or email already exists. Please choose another.")
 
-    logger.error(f"Signup failed for {data['email']} — {error}")
-    abort(500, message="Internal server error")
+
+        user = User(username=username, email=email)
+        user.password = password
+
+        db.session.add(user)
+        db.session.commit()
+
+        logger.info(f"User created successfully: {user.username} ({user.id})")
+
+
+        return {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email
+        }
+
+    except IntegrityError as e:
+        db.session.rollback()
+        logger.warning(f"Integrity error during signup: {str(e)}")
+        abort(409, message="Username or email already exists.")
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        logger.error(f"Signup error: {str(e)}")
+        abort(500, message="Internal server error")
 
 
 @auth_bp.route("/login", methods=["POST"])
-@auth_bp.arguments(LoginSchema)
-@auth_bp.response(200, TokenSchema)
+@auth_bp.arguments(user_login_schema)
+@auth_bp.response(200, user_response_schema)
 def login(data):
-    user = get_user_by_email(data["email"])
-    if user and user.check_password(data["password"]):
-        logger.info(f"User login successful: {user.email} (id={user.id})")
-        token = create_access_token(identity=str(user.id))
-        return {"access_token": token}
+    try:
+        email = data.get("email", "").strip()
+        password = data.get("password", "").strip()
 
-    logger.warning(f"Invalid login attempt: {data['email']}")
-    abort(401, message="Invalid credentials")
+        user = db.session.query(User).filter_by(email=email).first()
+        if not user or not user.check_password(password):
+            logger.warning(f"Failed login attempt for email: {email}")
+            abort(401, message="Invalid credentials")
+
+
+        token = create_access_token(identity=str(user.id))
+        logger.info(f"User logged in successfully: {user.username} ({user.id})")
+
+        return {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "token": token
+        }
+
+    except SQLAlchemyError as e:
+        logger.error(f"Login error: {str(e)}")
+        abort(500, message="Internal server error")
 
