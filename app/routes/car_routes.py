@@ -1,102 +1,140 @@
-from flask import Blueprint, jsonify, request
-from app.models.car import Car
-from app.extensions import db
+import logging
+from flask_smorest import Blueprint, abort
 from flask_jwt_extended import jwt_required
+from sqlalchemy.exc import SQLAlchemyError
+from app.extensions import db
+from app.models.car import Car, CarModel, Make
+from app.schema.car_schema import CarSchema, CarCreateSchema, CarUpdateSchema
 
-car_bp = Blueprint('cars', __name__)
+logger = logging.getLogger(__name__)
+car_bp = Blueprint("car", __name__, description="Car related operations")
 
-# ✅ Root Route - Now you won't get "Not Found" at /
-@car_bp.route('/')
-def home():
-    return jsonify({"message": " Car API is running! Use /cars to list all cars."})
 
-@car_bp.route('/cars', methods=['GET'])
+@car_bp.route("/", methods=["POST"])
 @jwt_required()
-def get_cars():
-    cars = Car.query.all()
-    return jsonify([car.to_dict() for car in cars]), 200
-
-@car_bp.route('/cars/<int:car_id>', methods=['GET'])
-@jwt_required()
-def get_car(car_id):
-    car = Car.query.get(car_id)
-    if car:
-        return jsonify(car.to_dict()), 200
-    return jsonify({"msg": "Car not found"}), 404
-
-@car_bp.route('/cars', methods=['POST'])
-@jwt_required()
-def create_car():
-    data = request.get_json()
-    car = Car(
-        object_id=data['object_id'],
-        make=data['make'],
-        model=data['model'],
-        year=data['year'],
-        created_at=data['created_at']
-    )
-    db.session.add(car)
-    db.session.commit()
-    return jsonify(car.to_dict()), 201
-
-from app.services.parse_services import fetch_all_cars
-
-@car_bp.route('/sync', methods=['GET'])
-def sync_cars():
+@car_bp.arguments(CarCreateSchema)
+@car_bp.response(201, CarSchema)
+def create_car(data):
     try:
-        cars_data = fetch_all_cars()
-        created, updated = 0, 0
+        make_name = data.get("make")
+        model_name = data.get("model")
 
-        for data in cars_data:
-            existing = Car.query.filter_by(object_id=data["object_id"]).first()
-            if existing:
-                # Update existing car
-                existing.make = data["make"]
-                existing.model = data["model"]
-                existing.year = data["year"]
-                existing.created_at = data["created_at"]
-                updated += 1
-            else:
-                # Create new car
-                car = Car(
-                    object_id=data["object_id"],
-                    make=data["make"],
-                    model=data["model"],
-                    year=data["year"],
-                    created_at=data["created_at"]
-                )
-                db.session.add(car)
-                created += 1
+        make = db.session.query(Make).filter_by(name=make_name).first()
+        if not make:
+            make = Make(name=make_name)
+            db.session.add(make)
+            db.session.flush()
+
+        model = None
+        if model_name:
+            model = db.session.query(CarModel).filter_by(name=model_name, make_id=make.id).first()
+            if not model:
+                model = CarModel(name=model_name, make_id=make.id)
+                db.session.add(model)
+                db.session.flush()
+
+        car = Car(
+            make_id=make.id,
+            model_id=model.id if model else None,
+            year=data["year"],
+            category=data.get("category")
+        )
+        db.session.add(car)
+        db.session.commit()
+        logger.info(f"Car created successfully: {car.id}")
+        return car
+
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        logger.error(f"Error creating car: {str(e)}")
+        abort(400, message="Could not create car")
+
+
+@car_bp.route("/", methods=["GET"])
+@jwt_required()
+@car_bp.response(200, CarSchema(many=True))
+def get_all_cars():
+    try:
+        cars = db.session.query(Car).all()
+        return cars
+    except SQLAlchemyError as e:
+        logger.error(f"Error fetching cars: {str(e)}")
+        abort(500, message="Could not fetch cars")
+
+
+@car_bp.route("/<int:car_id>", methods=["GET"])
+@jwt_required()
+@car_bp.response(200, CarSchema)
+def get_car(car_id):
+    try:
+        car = db.session.get(Car, car_id)
+        if not car:
+            abort(404, message=f"Car with ID {car_id} not found")
+        return car
+    except SQLAlchemyError as e:
+        logger.error(f"Error fetching car {car_id}: {str(e)}")
+        abort(500, message="Could not fetch car")
+
+
+@car_bp.route("/<int:car_id>", methods=["PATCH"])
+@jwt_required()
+@car_bp.arguments(CarUpdateSchema)
+@car_bp.response(200, CarSchema)
+def update_car(data, car_id):
+    try:
+        car = db.session.get(Car, car_id)
+        if not car:
+            abort(404, message=f"Car with ID {car_id} not found")
+
+        # Update fields
+        for key in ["year", "category"]:
+            if key in data:
+                setattr(car, key, data[key])
+
+        if "make" in data:
+            make_name = data["make"]
+            make = db.session.query(Make).filter_by(name=make_name).first()
+            if not make:
+                make = Make(name=make_name)
+                db.session.add(make)
+                db.session.flush()
+            car.make_id = make.id
+
+        if "model" in data:
+            model_name = data["model"]
+            model = db.session.query(CarModel).filter_by(name=model_name, make_id=car.make_id).first()
+            if not model:
+                model = CarModel(name=model_name, make_id=car.make_id)
+                db.session.add(model)
+                db.session.flush()
+            car.model_id = model.id
 
         db.session.commit()
-        return jsonify({"msg": f"{created} new cars added, {updated} updated"}), 200
+        logger.info(f"Car updated successfully: {car.id}")
+        return car
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        logger.error(f"Error updating car {car_id}: {str(e)}")
+        abort(400, message="Could not update car")
 
-@car_bp.route('/cars/<int:car_id>', methods=['PUT'])
+
+@car_bp.route("/<int:car_id>", methods=["DELETE"])
 @jwt_required()
-def update_car(car_id):
-    data = request.get_json()
-    car = Car.query.get(car_id)
-    if not car:
-        return jsonify({"msg": "Car not found"}), 404
-
-    car.make = data.get('make', car.make)
-    car.model = data.get('model', car.model)
-    car.year = data.get('year', car.year)
-    car.created_at = data.get('created_at', car.created_at)
-
-    db.session.commit()
-    return jsonify(car.to_dict()), 200
-
-@car_bp.route('/cars/<int:car_id>', methods=['DELETE'])
-@jwt_required()
+@car_bp.response(200, dict)
 def delete_car(car_id):
-    car = Car.query.get(car_id)
-    if not car:
-        return jsonify({"msg": "Car not found"}), 404
+    try:
+        car = db.session.get(Car, car_id)
+        if not car:
+            abort(404, message=f"Car with ID {car_id} not found")
 
-    db.session.delete(car)
-    db.session.commit()
-    return jsonify({"msg": "Car deleted"}), 200
+        db.session.delete(car)
+        db.session.commit()
+        logger.info(f"Car deleted successfully: {car.id}")
+        return {"message": f"Car with ID {car_id} deleted successfully"}
+
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        logger.error(f"Error deleting car {car_id}: {str(e)}")
+        abort(400, message="Could not delete car")
+

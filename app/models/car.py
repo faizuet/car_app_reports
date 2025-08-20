@@ -1,19 +1,27 @@
-from app.extensions import db
+from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy.orm import relationship
+from app.models.db import Base
 
-class Car(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    object_id = db.Column(db.String(100), unique=True, nullable=False)
-    make = db.Column(db.String(100))
-    model = db.Column(db.String(100))
-    year = db.Column(db.Integer)
-    created_at = db.Column(db.String(100))
+class Make(Base):
+    __tablename__ = "makes"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(64), unique=True, nullable=False)
 
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "object_id": self.object_id,
-            "make": self.make,
-            "model": self.model,
-            "year": self.year,
-            "created_at": self.created_at,
-        }
+class CarModel(Base):
+    __tablename__ = "car_models"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(64), nullable=False)
+    make_id = Column(Integer, ForeignKey("makes.id"))
+    make = relationship("Make")
+
+class Car(Base):
+    __tablename__ = "cars"
+    id = Column(Integer, primary_key=True)
+    make_id = Column(Integer, ForeignKey("makes.id"))
+    model_id = Column(Integer, ForeignKey("car_models.id"))
+    year = Column(Integer, nullable=False)
+    category = Column(String(64))
+
+    make = relationship("Make")
+    model = relationship("CarModel")
+

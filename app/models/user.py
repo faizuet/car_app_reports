@@ -1,15 +1,37 @@
-from app.extensions import db
+from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy.sql import func
 from werkzeug.security import generate_password_hash, check_password_hash
+from app.models.db import Base
 
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.String(200), nullable=False)
+class User(Base):
+    __tablename__ = "users"
 
-    # ✅ Set the password using hashing
-    def set_password(self, password):
-        self.password = generate_password_hash(password)
+    id = Column(Integer, primary_key=True)
+    username = Column(String(64), unique=True, nullable=False)
+    email = Column(String(120), unique=True, nullable=False)
+    _password_hash = Column("password", String(128), nullable=False)
 
-    # ✅ Check password during login
-    def check_password(self, password):
-        return check_password_hash(self.password, password)
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False
+    )
+
+    @property
+    def password(self):
+        raise AttributeError("Password is write-only.")
+
+    @password.setter
+    def password(self, plaintext_password):
+        self._password_hash = generate_password_hash(plaintext_password)
+
+    def check_password(self, plaintext_password):
+        return check_password_hash(self._password_hash, plaintext_password)
+
