@@ -1,4 +1,4 @@
-# Car App Reports 🚗📊  
+# Car App Reports 
 
 A Flask-based web application for managing car-related reports with JWT authentication, background task processing using Celery, and Dockerized deployment. Now configured to use **MySQL** as the main database.  
 
@@ -45,7 +45,7 @@ car_app_reports/
 
 ### Local Setup  
 ```bash
-git clone https://github.com/yourusername/car_app_reports.git
+git clone https://github.com/faizuet7/car_app_reports.git
 cd car_app_reports
 
 # Create virtual environment
@@ -121,3 +121,4 @@ Start worker manually (if not using Docker):
 celery -A app.celery_worker.celery worker --loglevel=info
 celery -A app.celery_worker.celery beat --loglevel=info
 ```  
+
