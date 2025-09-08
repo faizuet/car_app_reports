@@ -1,0 +1,22 @@
+# Git
+.git
+.gitignore
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv
+env
+venv
+ENV
+
+# Logs
+*.log
+logs/
+
+# Local environment files
+*.env
+
