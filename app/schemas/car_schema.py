@@ -1,6 +1,9 @@
+from __future__ import annotations
 from typing import Optional, List
-from pydantic import BaseModel, Field
 from datetime import datetime
+from pydantic import BaseModel, Field
+
+from pydantic.fields import computed_field
 
 
 class CarBase(BaseModel):
@@ -21,7 +24,7 @@ class CarCreate(CarBase):
 
 
 class CarUpdate(CarBase):
-    """Allow partial updates."""
+    """Partial updates for Car."""
     pass
 
 
@@ -29,8 +32,7 @@ class MakeRead(BaseModel):
     id: int
     name: str
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 
 class CarModelRead(BaseModel):
@@ -38,8 +40,7 @@ class CarModelRead(BaseModel):
     name: str
     make: MakeRead
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 
 class CarRead(BaseModel):
@@ -51,12 +52,12 @@ class CarRead(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
+    @computed_field
     @property
     def full_name(self) -> str:
-        """Return full car name: Make + Model + Year"""
+        """Full car name: Make + Model + Year"""
         make_name = self.car_model.make.name if self.car_model and self.car_model.make else ""
         model_name = self.car_model.name if self.car_model else ""
         return f"{make_name} {model_name} {self.year}"
@@ -72,9 +73,7 @@ class CarSimplifiedRead(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
 
-    class Config:
-        orm_mode = True
-
+    model_config = {"from_attributes": True}
 
 class PaginatedCars(BaseModel):
     total: int
@@ -84,4 +83,3 @@ class PaginatedCars(BaseModel):
 class PaginatedCarsSimplified(BaseModel):
     total: int
     items: List[CarSimplifiedRead]
-

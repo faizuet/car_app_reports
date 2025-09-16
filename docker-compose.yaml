@@ -1,7 +1,7 @@
 services:
   web:
     build: .
-    container_name: carapp_web
+    container_name: car_web
     env_file: .env
     ports:
       - "8000:8000"
@@ -13,6 +13,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      neo4j:
+        condition: service_started
     restart: unless-stopped
     networks:
       - backend
@@ -25,7 +27,7 @@ services:
 
   worker:
     build: .
-    container_name: carapp_worker
+    container_name: car_worker
     env_file: .env
     command: /app/scripts/celery_app.sh
     depends_on:
@@ -33,13 +35,15 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      neo4j:
+        condition: service_started
     restart: unless-stopped
     networks:
       - backend
 
   beat:
     build: .
-    container_name: carapp_beat
+    container_name: car_beat
     env_file: .env
     command: /app/scripts/celery_beat.sh
     depends_on:
@@ -47,13 +51,15 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      neo4j:
+        condition: service_started
     restart: unless-stopped
     networks:
       - backend
 
   db:
     image: mysql:8.0
-    container_name: carapp_db
+    container_name: car_db
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-Root221}
       MYSQL_DATABASE: ${MYSQL_DB:-car_app_db}
@@ -67,7 +73,7 @@ services:
     networks:
       - backend
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h db -u${MYSQL_USER} -p${MYSQL_PASSWORD}"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u${MYSQL_USER} -p${MYSQL_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -75,7 +81,7 @@ services:
 
   redis:
     image: redis:7
-    container_name: carapp_redis
+    container_name: car_redis
     restart: unless-stopped
     networks:
       - backend
@@ -90,9 +96,24 @@ services:
     ports:
       - "6379:6379"
 
+  neo4j:
+    image: neo4j:5
+    container_name: car_neo4j
+    environment:
+      NEO4J_AUTH: "${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-Neo4j_1234}"
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+    restart: unless-stopped
+    networks:
+      - backend
+
 volumes:
   mysql_data:
   redis_data:
+  neo4j_data:
 
 networks:
   backend:

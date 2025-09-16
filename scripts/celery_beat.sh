@@ -1,9 +1,9 @@
 #!/bin/bash
 set -e
 
-echo "Starting Celery beat..."
+# Default log level
+LOG_LEVEL=${CELERY_LOG_LEVEL:-info}
 
-LOG_LEVEL=${LOG_LEVEL:-info}
-
-celery -A car_tasks.celery_app beat --loglevel=$LOG_LEVEL
+# Start Celery beat
+celery -A car_tasks.celery_app beat --loglevel="$LOG_LEVEL"
 
