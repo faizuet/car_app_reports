@@ -32,15 +32,15 @@ A **FastAPI-based REST API** for managing car registration data with a scalable 
 
 All car endpoints require a valid JWT token in the `Authorization: Bearer <token>` header.  
 
-| Method | Route             | Auth | Description                   |
-|--------|------------------|------|-------------------------------|
-| POST   | `/auth/signup`   | No   | Register a new user           |
-| POST   | `/auth/login`    | No   | Login & get JWT token         |
-| GET    | `/users/me`      | Yes  | Get current user profile      |
-| PUT    | `/users/me`      | Yes  | Update current user profile   |
-| GET    | `/cars`          | Yes  | List all cars (paginated)     |
-| POST   | `/cars`          | Yes  | Add a new car                 |
-| GET    | `/cars/graph`    | Yes  | Get car relationships (Neo4j) |
+| Method | Route          | Auth | Description                   |
+|--------|----------------|------|-------------------------------|
+| POST   | `/auth/signup` | No   | Register a new user           |
+| POST   | `/auth/login`  | No   | Login & get JWT token         |
+| GET    | `/users/me`    | Yes  | Get current user profile      |
+| PUT    | `/users/me`    | Yes  | Update current user profile   |
+| GET    | `/cars`        | Yes  | List all cars (paginated)     |
+| POST   | `/cars`        | Yes  | Add a new car                 |
+| GET    | `/cars/graph`  | Yes  | Get car relationships (Neo4j) |
 
 **API Documentation:** `http://localhost:8000/docs`  
 
