@@ -1,13 +1,13 @@
-from typing import Optional
+from typing import Optional, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, and_
-from sqlalchemy.orm import selectinload
 
 from app.models.car_model import Car, CarModel, Make
 
+# -------------------- ASYNC FUNCTIONS (for FastAPI) -------------------- #
 
-async def fetch_car(session: AsyncSession, car_id: int) -> Optional[Car]:
-    """Fetch car with relations."""
+async def fetch_car_async(session: AsyncSession, car_id: int) -> Optional[Car]:
     result = await session.execute(
         select(Car)
         .where(Car.id == car_id)
@@ -16,16 +16,14 @@ async def fetch_car(session: AsyncSession, car_id: int) -> Optional[Car]:
     return result.scalars().first()
 
 
-async def get_user_car(session: AsyncSession, car_id: int, user_id: int) -> Car:
-    """Ensure car belongs to the given user."""
-    car = await fetch_car(session, car_id)
+async def get_user_car_async(session: AsyncSession, car_id: int, user_id: int) -> Car:
+    car = await fetch_car_async(session, car_id)
     if not car or car.user_id != user_id:
         raise ValueError("Car not found or not owned by user")
     return car
 
 
-async def get_or_create_make(session: AsyncSession, name: str) -> Make:
-    """Find or create a Make."""
+async def get_or_create_make_async(session: AsyncSession, name: str) -> Make:
     make = (await session.execute(select(Make).where(Make.name == name))).scalars().first()
     if not make:
         make = Make(name=name)
@@ -34,11 +32,12 @@ async def get_or_create_make(session: AsyncSession, name: str) -> Make:
     return make
 
 
-async def get_or_create_model(session: AsyncSession, name: str, make_id: int) -> CarModel:
-    """Find or create a CarModel."""
-    car_model = (await session.execute(
-        select(CarModel).where(and_(CarModel.name == name, CarModel.make_id == make_id))
-    )).scalars().first()
+async def get_or_create_model_async(session: AsyncSession, name: str, make_id: int) -> CarModel:
+    car_model = (
+        await session.execute(
+            select(CarModel).where(and_(CarModel.name == name, CarModel.make_id == make_id))
+        )
+    ).scalars().first()
     if not car_model:
         car_model = CarModel(name=name, make_id=make_id)
         session.add(car_model)
@@ -46,7 +45,7 @@ async def get_or_create_model(session: AsyncSession, name: str, make_id: int) ->
     return car_model
 
 
-async def create_car_with_model(
+async def create_car_with_model_async(
     session: AsyncSession,
     name: str,
     year: int,
@@ -54,15 +53,14 @@ async def create_car_with_model(
     car_model_id: Optional[int] = None,
     car_model_name: Optional[str] = None,
     category: Optional[str] = None,
-    user_id: Optional[int] = None
+    user_id: Optional[int] = None,
 ) -> Car:
-    """Create a Car linked to a CarModel (by id or name)."""
     if car_model_id:
         car_model = await session.get(CarModel, car_model_id)
         if not car_model:
             raise ValueError("CarModel with given ID not found")
     elif car_model_name:
-        car_model = await get_or_create_model(session, car_model_name, make_id)
+        car_model = await get_or_create_model_async(session, car_model_name, make_id)
     else:
         raise ValueError("Either car_model_id or car_model_name must be provided")
 
@@ -71,61 +69,110 @@ async def create_car_with_model(
         name=name,
         year=year,
         category=category,
-        user_id=user_id
+        user_id=user_id,
     )
     session.add(car)
     await session.flush()
     return car
 
 
-async def update_car_model_fields(
-    session: AsyncSession,
-    car_model_id: int,
-    name: Optional[str] = None,
-    make_id: Optional[int] = None,
-):
-    """Update CarModel fields."""
-    car_model = await session.get(CarModel, car_model_id)
-    if not car_model:
-        raise ValueError("CarModel not found")
-    if name:
-        car_model.name = name
-    if make_id is not None:
-        car_model.make_id = make_id
-    await session.flush()
-
-
-async def update_car_data(
+async def update_car_data_async(
     session: AsyncSession,
     car: Car,
-    data: dict,
+    data: Dict,
     car_model_name: Optional[str] = None,
     make_id: Optional[int] = None,
 ) -> Car:
-    """Update Car and its CarModel info."""
-    if data.get("name") or data.get("make_id"):
-        await update_car_model_fields(
-            session,
-            car.car_model_id,
-            name=data.get("name"),
-            make_id=data.get("make_id"),
-        )
-
-    if data.get("year"):
-        car.year = data["year"]
-    if data.get("category"):
-        car.category = data["category"]
+    fields_to_update = ("name", "year", "category")
+    for field in fields_to_update:
+        if field in data:
+            setattr(car, field, data[field])
 
     if car_model_name:
-        car_model = await get_or_create_model(session, name=car_model_name, make_id=make_id)
+        car_model = await get_or_create_model_async(session, car_model_name, make_id)
         car.car_model_id = car_model.id
 
     await session.flush()
-    return await fetch_car(session, car.id)
+    return await fetch_car_async(session, car.id)
 
 
-async def delete_car(session: AsyncSession, car: Car) -> None:
-    """Delete a car."""
+async def delete_car_async(session: AsyncSession, car: Car) -> None:
     await session.delete(car)
     await session.flush()
+
+
+# -------------------- SYNC FUNCTIONS (for Celery) -------------------- #
+
+def get_or_create_make_sync(session: Session, name: str) -> Make:
+    make = session.query(Make).filter_by(name=name).first()
+    if not make:
+        make = Make(name=name)
+        session.add(make)
+        session.flush()
+    return make
+
+
+def get_or_create_model_sync(session: Session, name: str, make_id: int) -> CarModel:
+    car_model = session.query(CarModel).filter_by(name=name, make_id=make_id).first()
+    if not car_model:
+        car_model = CarModel(name=name, make_id=make_id)
+        session.add(car_model)
+        session.flush()
+    return car_model
+
+
+def create_car_with_model_sync(
+    session: Session,
+    name: str,
+    year: int,
+    make_id: int,
+    car_model_id: Optional[int] = None,
+    car_model_name: Optional[str] = None,
+    category: Optional[str] = None,
+    user_id: Optional[int] = None,
+) -> Car:
+    if car_model_id:
+        car_model = session.query(CarModel).get(car_model_id)
+        if not car_model:
+            raise ValueError("CarModel with given ID not found")
+    elif car_model_name:
+        car_model = get_or_create_model_sync(session, car_model_name, make_id)
+    else:
+        raise ValueError("Either car_model_id or car_model_name must be provided")
+
+    car = Car(
+        car_model_id=car_model.id,
+        name=name,
+        year=year,
+        category=category,
+        user_id=user_id,
+    )
+    session.add(car)
+    session.flush()
+    return car
+
+
+def update_car_data_sync(
+    session: Session,
+    car: Car,
+    data: Dict,
+    car_model_name: Optional[str] = None,
+    make_id: Optional[int] = None,
+) -> Car:
+    fields_to_update = ("name", "year", "category")
+    for field in fields_to_update:
+        if field in data:
+            setattr(car, field, data[field])
+
+    if car_model_name:
+        car_model = get_or_create_model_sync(session, car_model_name, make_id)
+        car.car_model_id = car_model.id
+
+    session.flush()
+    return car
+
+
+def delete_car_sync(session: Session, car: Car) -> None:
+    session.delete(car)
+    session.flush()
 
