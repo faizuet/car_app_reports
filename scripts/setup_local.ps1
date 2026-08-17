@@ -50,3 +50,9 @@ Write-Host "Manual sync for test data:" -ForegroundColor Yellow
 Write-Host "  .\.venv\Scripts\celery -A car_tasks.celery_app call car_tasks.sync_cars.sync_car_data"
 Write-Host ""
 Write-Host "API docs: http://localhost:8000/docs" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Start frontend UI (terminal 4):" -ForegroundColor Yellow
+Write-Host "  .\scripts\start_frontend.ps1"
+Write-Host "  (requires Node.js — OR run: docker compose up frontend -d)"
+Write-Host ""
+Write-Host "Frontend UI: http://localhost:5173" -ForegroundColor Cyan

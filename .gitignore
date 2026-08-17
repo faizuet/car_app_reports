@@ -74,3 +74,11 @@ docker-compose.override.yml
 .docker/
 *.pid
 
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Uploads (keep directory, ignore files)
+uploads/*
+!uploads/.gitkeep
+

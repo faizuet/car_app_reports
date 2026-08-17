@@ -55,6 +55,15 @@ class Config(BaseSettings):
     CELERY_CONCURRENCY: int = Field(1, env="CELERY_CONCURRENCY")
     CELERY_LOG_LEVEL: str = Field("info", env="CELERY_LOG_LEVEL")
 
+    # CORS (frontend)
+    CORS_ORIGINS: str = Field(
+        "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173",
+        env="CORS_ORIGINS",
+    )
+
+    # File uploads
+    UPLOAD_DIR: str = Field("uploads", env="UPLOAD_DIR")
+
     # SQLAlchemy URIs
     SQLALCHEMY_DATABASE_URI: str = ""
     ASYNC_SQLALCHEMY_DATABASE_URI: str = ""
