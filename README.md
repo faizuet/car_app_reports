@@ -251,6 +251,58 @@ car_app_reports/
 3. **Search reports:** `GET /reports/?make=Ford&year=2018` with Bearer token
 4. Wait for Celery sync (or trigger manually) before reports contain data
 
+Postman collection: `postman/Car_App_Reports.postman_collection.json`
+
+---
+
+## Frontend (React UI)
+
+A professional React frontend lives in `frontend/`.
+
+### Prerequisites
+
+- [Node.js 18+](https://nodejs.org/) (includes npm)
+
+### Option A — With Node.js installed
+
+```bash
+# Terminal 1 — backend (if not already running)
+cd D:\car_app_reports
+.\.venv\Scripts\uvicorn app.main:app --reload
+
+# Terminal 2 — frontend
+.\scripts\start_frontend.ps1
+```
+
+Open **http://localhost:5173**
+
+### Option B — Frontend via Docker (no Node.js needed)
+
+```bash
+# Backend + DB already running, then:
+docker compose up frontend -d
+```
+
+Open **http://localhost:5173**
+
+### Option C — Full stack including UI
+
+```bash
+docker compose up --build
+```
+
+Includes API, PostgreSQL, Redis, Neo4j, Celery, and React frontend.
+
+### Frontend features
+
+- Login / Sign up with JWT auth
+- Dashboard with quick navigation
+- **Reports search** — filter by make, model, year, date + pagination
+- My Cars — add / list / delete
+- Profile — update username, email, password
+
+See [frontend/README.md](./frontend/README.md) for details.
+
 ---
 
 ## License

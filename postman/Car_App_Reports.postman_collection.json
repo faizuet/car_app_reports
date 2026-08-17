@@ -1,0 +1,532 @@
+{
+  "info": {
+    "_postman_id": "car-app-reports-api",
+    "name": "Car App Reports API",
+    "description": "Postman collection for the Car Registration Reports FastAPI backend.\n\n## Quick start\n1. Import this collection into Postman.\n2. Ensure the API is running at `http://localhost:8000`.\n3. Run **Auth → Login** (or **Sign Up** first).\n4. The login request auto-saves `access_token` — protected routes use it automatically.\n5. Run **Reports** requests to search synced car data.\n\n## Variables\n- `baseUrl` — API base URL (default: http://localhost:8000)\n- `access_token` — set automatically after login\n- `car_id` — set manually after creating a car",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "car_id",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Root / Health Check",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            },
+            "description": "Public health/welcome endpoint."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Sign Up",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const json = pm.response.json();",
+                  "    pm.collectionVariables.set('user_id', json.id);",
+                  "    pm.test('User created', () => pm.expect(json.email).to.be.a('string'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"postman_user\",\n  \"email\": \"postman@example.com\",\n  \"password\": \"secret123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/signup",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "signup"]
+            },
+            "description": "Register a new user. Change email/username if already registered."
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', json.access_token);",
+                  "    pm.test('Token received', () => pm.expect(json.access_token).to.be.a('string'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"postman@example.com\",\n  \"password\": \"secret123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Login and auto-save JWT to `access_token` collection variable."
+          },
+          "response": []
+        }
+      ],
+      "description": "Authentication endpoints (no token required)."
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "me"]
+            },
+            "description": "Get the currently authenticated user's profile."
+          },
+          "response": []
+        },
+        {
+          "name": "Update My Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"postman_user_updated\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "me"]
+            },
+            "description": "Update username, email, or password (all fields optional)."
+          },
+          "response": []
+        },
+        {
+          "name": "List All Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/?limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", ""],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Paginated list of all users."
+          },
+          "response": []
+        }
+      ],
+      "description": "User profile endpoints (JWT required)."
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Search Reports - All",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/?limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", ""],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "List all synced registration reports (paginated)."
+          },
+          "response": []
+        },
+        {
+          "name": "Search Reports - By Make",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/?make=Toyota&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", ""],
+              "query": [
+                {
+                  "key": "make",
+                  "value": "Toyota"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Filter reports by manufacturer (partial match)."
+          },
+          "response": []
+        },
+        {
+          "name": "Search Reports - By Make & Model",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/?make=Audi&model=Q3&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", ""],
+              "query": [
+                {
+                  "key": "make",
+                  "value": "Audi"
+                },
+                {
+                  "key": "model",
+                  "value": "Q3"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Filter by make and model."
+          },
+          "response": []
+        },
+        {
+          "name": "Search Reports - By Year",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/?year=2020&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", ""],
+              "query": [
+                {
+                  "key": "year",
+                  "value": "2020"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Filter by manufacturing year (2012-2022)."
+          },
+          "response": []
+        },
+        {
+          "name": "Search Reports - Full Filter",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/?make=Audi&model=Q3&year=2020&date_from=2020-01-01T00:00:00&date_to=2020-12-31T23:59:59&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", ""],
+              "query": [
+                {
+                  "key": "make",
+                  "value": "Audi"
+                },
+                {
+                  "key": "model",
+                  "value": "Q3"
+                },
+                {
+                  "key": "year",
+                  "value": "2020"
+                },
+                {
+                  "key": "date_from",
+                  "value": "2020-01-01T00:00:00"
+                },
+                {
+                  "key": "date_to",
+                  "value": "2020-12-31T23:59:59"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Challenge requirement: filter by make, model, year, and date range."
+          },
+          "response": []
+        },
+        {
+          "name": "Search Reports - Next Page (Cursor)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/?make=Audi&year=2020&limit=10&cursor=17",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", ""],
+              "query": [
+                {
+                  "key": "make",
+                  "value": "Audi"
+                },
+                {
+                  "key": "year",
+                  "value": "2020"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "cursor",
+                  "value": "17",
+                  "description": "Use next_cursor from previous response"
+                }
+              ]
+            },
+            "description": "Pagination: pass `next_cursor` from previous response as `cursor`."
+          },
+          "response": []
+        }
+      ],
+      "description": "Search synced car registration reports (JWT required). Run data sync first if empty."
+    },
+    {
+      "name": "Cars",
+      "item": [
+        {
+          "name": "Create Car",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const json = pm.response.json();",
+                  "    pm.collectionVariables.set('car_id', json.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Toyota\",\n  \"year\": 2020,\n  \"make_id\": 1,\n  \"car_model_name\": \"Corolla\",\n  \"category\": \"Sedan\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/cars/",
+              "host": ["{{baseUrl}}"],
+              "path": ["cars", ""]
+            },
+            "description": "Create a user-owned car. Use an existing make_id from synced data (check DB or use 1)."
+          },
+          "response": []
+        },
+        {
+          "name": "List My Cars",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/cars/?limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["cars", ""],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List cars owned by the authenticated user."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Car By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/cars/{{car_id}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["cars", "{{car_id}}"]
+            },
+            "description": "Get a single car by ID (must be owned by you)."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Car (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": \"Hybrid Sedan\",\n  \"year\": 2021\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/cars/{{car_id}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["cars", "{{car_id}}"]
+            },
+            "description": "Partially update a car."
+          },
+          "response": []
+        },
+        {
+          "name": "Replace Car (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Toyota Updated\",\n  \"year\": 2021,\n  \"make_id\": 1,\n  \"car_model_name\": \"Camry\",\n  \"category\": \"Sedan\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/cars/{{car_id}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["cars", "{{car_id}}"]
+            },
+            "description": "Full replace of a car."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Car",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/cars/{{car_id}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["cars", "{{car_id}}"]
+            },
+            "description": "Delete a user-owned car."
+          },
+          "response": []
+        }
+      ],
+      "description": "User-owned car CRUD (JWT required)."
+    }
+  ]
+}
