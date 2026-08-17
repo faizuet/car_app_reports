@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libffi-dev \
     libssl-dev \
-    default-libmysqlclient-dev \
+    libpq-dev \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -34,4 +34,3 @@ EXPOSE 8000
 
 # Default command (overridden in docker-compose for worker/beat)
 CMD ["/app/scripts/start.sh"]
-

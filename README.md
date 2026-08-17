@@ -1,164 +1,258 @@
-# Car Application
+# Car Registration Reports API
 
-A **FastAPI-based REST API** for managing car registration data with a scalable architecture using both **MySQL** (relational data) and **Neo4j** (graph relationships). The app supports secure JWT authentication, handles background tasks with Celery, and is fully containerized with Docker.  
+A **FastAPI** backend for a car registration reporting app. It syncs vehicle data from the [Back4App Car Models dataset](https://www.back4app.com/database/back4app/car-make-model-dataset), stores it in a normalized **PostgreSQL** database, and exposes authenticated REST APIs for users to search and view reports.
 
----
-
-## Features  
-
-- **Modern Tech Stack**: Built with FastAPI for high performance.  
-- **Hybrid Database**: MySQL for relational data + Neo4j for graph-based relationships.  
-- **JWT Authentication**: Secure endpoints with `POST /auth/signup` and `POST /auth/login`.  
-- **Full CRUD Operations**: Manage users, cars, and related entities.  
-- **Graph Queries**: Explore relationships between cars, makes, and models in Neo4j.  
-- **Background Tasks**: Sync data syncing handled by Celery with Redis.  
-- **Containerized Deployment**: Easy setup with Docker & Docker Compose.  
-- **Schema Validation**: Pydantic ensures data integrity.  
+This project implements the **Python Real World Challenge** requirements using **FastAPI** (instead of Flask) with **Pydantic** for schema validation (equivalent to Marshmallow).
 
 ---
 
-## Tech Stack  
+## Challenge Requirements Mapping
 
-- **Backend**: FastAPI, Uvicorn  
-- **Databases**: MySQL (SQLAlchemy + Alembic), Neo4j  
-- **Authentication**: JWT (python-jose)  
-- **Task Queue**: Celery, Redis  
-- **Validation**: Pydantic  
-- **Containerization**: Docker & Docker Compose  
-
----
-
-## API Endpoints  
-
-All car endpoints require a valid JWT token in the `Authorization: Bearer <token>` header.  
-
-| Method | Route          | Auth | Description                   |
-|--------|----------------|------|-------------------------------|
-| POST   | `/auth/signup` | No   | Register a new user           |
-| POST   | `/auth/login`  | No   | Login & get JWT token         |
-| GET    | `/users/me`    | Yes  | Get current user profile      |
-| PUT    | `/users/me`    | Yes  | Update current user profile   |
-| GET    | `/cars`        | Yes  | List all cars (paginated)     |
-| POST   | `/cars`        | Yes  | Add a new car                 |
-| GET    | `/cars/graph`  | Yes  | Get car relationships (Neo4j) |
-
-**API Documentation:** `http://localhost:8000/docs`  
+| Requirement | Implementation |
+|-------------|----------------|
+| Sign up / Login | `POST /auth/signup`, `POST /auth/login` with JWT |
+| Periodic dataset sync (daily, 2012–2022) | Celery Beat task `sync_car_data` runs once per day |
+| Upsert (update, not overwrite) | Records matched by `external_id` from Back4App |
+| Search reports by make, model, year, date | `GET /reports/` with query filters + pagination |
+| Schema validation | Pydantic models on all request/response bodies |
+| Pagination | Cursor-based pagination on list/search endpoints |
+| Database normalization | `Make` → `CarModel` → `Car` tables |
+| User authentication | JWT bearer tokens verified on protected routes |
 
 ---
 
-## Database Schema  
+## Tech Stack
 
-- **MySQL**: Stores user accounts, authentication, and core car data.  
-- **Neo4j**: Stores graph relationships:  
-  - **Nodes**: `(:User)`, `(:Car)`, `(:Make)`, `(:Model)`  
-  - **Relationships**:  
-    - `(:Car)-[:HAS_MODEL]->(:Model)`  
-    - `(:Model)-[:HAS_MAKE]->(:Make)`  
+- **FastAPI** + Uvicorn
+- **PostgreSQL** (SQLAlchemy 2.0 + Alembic)
+- **Neo4j** (optional graph mirror for cars/users)
+- **Celery** + **Redis** (background sync)
+- **Pydantic v2** (validation)
+- **Docker Compose** (full stack)
 
 ---
 
-## Setup (Local Development)  
+## API Endpoints
 
-### Prerequisites  
-- Python 3.10+  
-- MySQL 8.0+  
-- Neo4j 5.x+  
-- Redis  
-- Docker & Docker Compose  
+All protected routes require: `Authorization: Bearer <token>`
 
-### Clone & Setup  
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| POST | `/auth/signup` | No | Register a new user |
+| POST | `/auth/login` | No | Login and receive JWT |
+| GET | `/users/me` | Yes | Current user profile |
+| PUT | `/users/me` | Yes | Update current user profile |
+| GET | `/reports/` | Yes | **Search car registration reports** |
+| GET | `/cars/` | Yes | List user's own cars (paginated) |
+| POST | `/cars/` | Yes | Add a user-owned car |
+| GET | `/cars/{id}` | Yes | Get a user-owned car |
+| PATCH | `/cars/{id}` | Yes | Partially update a car |
+| PUT | `/cars/{id}` | Yes | Replace a car |
+| DELETE | `/cars/{id}` | Yes | Delete a car |
+
+**Interactive docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
+
+### Search Reports Example
+
+```http
+GET /reports/?make=Toyota&model=Corolla&year=2020&date_from=2019-01-01T00:00:00&limit=10
+Authorization: Bearer <your_token>
+```
+
+**Query parameters:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `make` | string | Partial match on manufacturer |
+| `model` | string | Partial match on model name |
+| `year` | int | Manufacturing year (2012–2022) |
+| `date_from` | datetime | Report created on or after |
+| `date_to` | datetime | Report created on or before |
+| `limit` | int | Page size (1–100, default 10) |
+| `cursor` | int | Last seen `id` for next page |
+
+---
+
+## Database Schema
+
+```
+makes (id, name)
+car_models (id, name, make_id → makes.id)
+cars (id, name, year, category, car_model_id, user_id, external_id, created_at, updated_at)
+users (id, username, email, password_hash, created_at, updated_at)
+```
+
+- Synced Back4App records have a non-null `external_id`.
+- User-created cars have `user_id` set and typically no `external_id`.
+
+---
+
+## Environment Variables
+
+Create a `.env` file (copy from `.env.example`):
+
 ```bash
-git clone https://github.com/faizuet/car_app_reports.git
-cd car_app_fastapi
-python -m venv .venv
-# On Windows
-.venv\Scripts\activate
-# On macOS/Linux
-source .venv/bin/activate
-pip install -r requirements.txt
-```  
+# Windows
+copy .env.example .env
 
-### Environment File  
-Create a `.env` file in the project root:  
+# macOS / Linux
+cp .env.example .env
+```
+
+Key variables:
+
 ```env
-SECRET_KEY=your-secret-key
+ENV=local
+JWT_SECRET_KEY=your-secret-key-here
 
-# MySQL
-DATABASE_URL=mysql+aiomysql://username:password@db:3306/car_db
+# PostgreSQL
+POSTGRES_USER=appuser
+POSTGRES_PASSWORD=AppPass123
+POSTGRES_DB=car_app_db
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
 
 # Neo4j
-NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
-NEO4J_PASSWORD=your-password
+NEO4J_PASSWORD=Neo4j_1234
 
-# Celery / Redis
-CELERY_BROKER_URL=redis://localhost:6379/0
-CELERY_RESULT_BACKEND=redis://localhost:6379/0
-```  
+# Back4App (defaults match challenge credentials)
+PARSE_APP_ID=gP38fEGPgSSBvvO4Kz9McQD2UpUrcpIlrXDyHLWc
+PARSE_REST_API_KEY=72gJMaTFClPr90oA7bkRYdUy0PJIcKQ8tj8bQvtP
+PARSE_API_URL=https://parseapi.back4app.com/classes/Carmodels_Car_Model_List?limit=1000
 
-### Start Services (Local)  
+# Celery daily sync (UTC)
+CELERY_SYNC_HOUR=0
+CELERY_SYNC_MINUTE=0
+SYNC_YEAR_MIN=2012
+SYNC_YEAR_MAX=2022
+```
+
+For Docker Compose, set `ENV=docker` (or rely on `docker-compose.yaml` which sets it for app services).
+
+---
+
+## Running Locally (Recommended for Testing)
+
+### Option A — App on your machine, databases in Docker
+
+This is the easiest way to develop and test on Windows.
+
+**1. Start PostgreSQL, Redis, and Neo4j:**
+
 ```bash
-# Run migrations for MySQL
+docker compose up db redis neo4j -d
+```
+
+**2. Create virtualenv and install dependencies:**
+
+```bash
+cd car_app_reports
+python -m venv .venv
+
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+
+pip install -r requirements.txt
+```
+
+**3. Configure environment:**
+
+```bash
+copy .env.example .env
+```
+
+Ensure `.env` has `ENV=local` and `POSTGRES_HOST=localhost`.
+
+**4. Create database tables:**
+
+```bash
 alembic upgrade head
+```
 
-# Start FastAPI
-uvicorn app.main:app --reload
-```  
+**5. Start the API:**
 
----
-
-## Docker Setup  
-
-Update `.env` for Docker networking:  
-```env
-DATABASE_URL=mysql+aiomysql://username:password@mysql:3306/car_db
-NEO4J_URI=bolt://neo4j:7687
-CELERY_BROKER_URL=redis://redis:6379/0
-CELERY_RESULT_BACKEND=redis://redis:6379/0
-```  
-
-Then run:  
 ```bash
-docker compose up --build
-```  
+uvicorn app.main:app --reload
+```
 
-This will start:  
-- FastAPI backend  
-- MySQL  
-- Neo4j (http://localhost:7474)  
-- Redis  
-- Celery worker + beat  
+Open [http://localhost:8000/docs](http://localhost:8000/docs)
+
+**6. Start Celery (two extra terminals, venv activated):**
+
+```bash
+celery -A car_tasks.celery_app worker --loglevel=info
+```
+
+```bash
+celery -A car_tasks.celery_app beat --loglevel=info
+```
+
+**7. Trigger a manual data sync (optional, for report data):**
+
+```bash
+celery -A car_tasks.celery_app call car_tasks.sync_cars.sync_car_data
+```
 
 ---
 
-## Project Structure  
+### Option B — Full stack in Docker
+
+```bash
+copy .env.example .env
+docker compose up --build
+```
+
+API: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+---
+
+### Prerequisites
+
+- Python 3.10+
+- Docker Desktop (for PostgreSQL, Redis, Neo4j)
+
+---
+
+## Project Structure
 
 ```
-car_app_fastapi/
+car_app_reports/
 ├── app/
 │   ├── main.py                 # FastAPI entry point
-│   ├── core/                   # Configs, DB setup
-│   │   ├── async_db.py
-│   │   ├── sync_db.py
-│   │   ├── config.py
-│   │   └── base.py
+│   ├── core/                   # Config, DB engines
 │   ├── models/                 # SQLAlchemy models
-│   │   ├── car_model.py
-│   │   └── user_model.py
-│   ├── routers/                # API routes
-│   │   ├── auth_routes.py
-│   │   ├── cars_routes.py
-│   │   └── users_routes.py
-│   ├── schemas/                # Pydantic schemas
-│   ├── utils/                  # Helpers & Neo4j services
-│   └── deps/                   # Dependencies (auth, etc.)
-├── car_tasks/                  # Celery tasks
-│   ├── celery_app.py
-│   └── sync_cars.py
+│   ├── routers/                # Route handlers
+│   │   ├── auth_routes.py      # Signup / login
+│   │   ├── reports_routes.py   # Search reports (challenge)
+│   │   ├── cars_routes.py      # User car CRUD
+│   │   └── users_routes.py     # User profile
+│   ├── schemas/                # Pydantic validation
+│   ├── utils/                  # Services, pagination, Neo4j
+│   └── deps/                   # JWT auth dependency
+├── car_tasks/
+│   ├── celery_app.py           # Celery + daily beat schedule
+│   └── sync_cars.py            # Back4App sync task
 ├── alembic/                    # DB migrations
-├── scripts/                    # Startup scripts
-├── docker-compose.yml
+├── scripts/                    # Docker startup scripts
+├── docker-compose.yaml
 ├── Dockerfile
 ├── requirements.txt
-└── README.md
+├── README.md
+└── REPORT.md                   # Challenge submission report
 ```
+
+---
+
+## Testing with Postman
+
+1. **Sign up:** `POST /auth/signup` with `{ "username", "email", "password" }`
+2. **Login:** `POST /auth/login` with `{ "email", "password" }` → copy `access_token`
+3. **Search reports:** `GET /reports/?make=Ford&year=2018` with Bearer token
+4. Wait for Celery sync (or trigger manually) before reports contain data
+
+---
+
+## License
+
+MIT

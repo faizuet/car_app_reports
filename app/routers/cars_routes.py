@@ -41,7 +41,7 @@ async def create_car(
     neo4j: Neo4jDep,
     user: CurrentUser,
 ):
-    """Create a new car in MySQL and mirror in Neo4j."""
+    """Create a new car in PostgreSQL and mirror in Neo4j."""
     try:
         car = await create_car_with_model_async(
             session=db,
@@ -85,7 +85,9 @@ async def list_cars(
         .options(selectinload(Car.car_model).selectinload(CarModel.make))
         .order_by(Car.id)
     )
-    return await cursor_paginate(query, db, model_id_field="id", limit=limit, cursor=cursor)
+    return await cursor_paginate(
+        query, db, schema=CarRead, limit=limit, cursor=cursor
+    )
 
 
 @router.get("/{car_id}", response_model=CarRead)
@@ -169,7 +171,7 @@ async def delete_car_route(
     neo4j: Neo4jDep,
     user: CurrentUser,
 ):
-    """Delete a car from MySQL and Neo4j."""
+    """Delete a car from PostgreSQL and Neo4j."""
     try:
         car = await get_user_car_async(db, car_id, int(user["sub"]))
         await delete_car_async(db, car)

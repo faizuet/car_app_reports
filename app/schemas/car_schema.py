@@ -75,6 +75,22 @@ class CarSimplifiedRead(BaseModel):
 
     model_config = {"from_attributes": True}
 
+
+class CarReportRead(CarSimplifiedRead):
+    """Report item returned by the search/reports API."""
+    pass
+
+
+class CarSearchQuery(BaseModel):
+    """Validated query parameters for searching car registration reports."""
+    make: Optional[str] = Field(None, max_length=100)
+    model: Optional[str] = Field(None, max_length=100)
+    year: Optional[int] = Field(None, ge=2012, le=2022)
+    date_from: Optional[datetime] = None
+    date_to: Optional[datetime] = None
+    limit: int = Field(10, ge=1, le=100)
+    cursor: Optional[int] = Field(None, ge=1)
+
 class PaginatedCars(BaseModel):
     total: int
     items: List[CarRead]

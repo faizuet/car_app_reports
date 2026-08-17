@@ -52,7 +52,7 @@ async def create_user(data: UserCreateSchema, db: DBSession, neo4j: Neo4jDep):
     if existing_user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already in use")
 
-    # 2. Create in MySQL
+    # 2. Create in PostgreSQL
     user = User(username=data.username.strip(), email=data.email.strip().lower())
     user.set_password(data.password.strip())
     db.add(user)

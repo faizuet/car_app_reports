@@ -6,7 +6,7 @@ from neo4j import GraphDatabase, Session as Neo4jSession
 from app.core.config import config
 
 
-# --- SQLAlchemy (MySQL, sync) ---
+# --- SQLAlchemy (PostgreSQL, sync) ---
 engine = create_engine(
     config.SQLALCHEMY_DATABASE_URI,
     pool_pre_ping=True,
