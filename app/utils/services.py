@@ -1,7 +1,9 @@
 from typing import Optional, Dict
+from datetime import datetime
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 
 from app.models.car_model import Car, CarModel, Make
 
@@ -99,6 +101,53 @@ async def update_car_data_async(
 async def delete_car_async(session: AsyncSession, car: Car) -> None:
     await session.delete(car)
     await session.flush()
+
+
+def build_car_reports_query(
+    make: Optional[str] = None,
+    model: Optional[str] = None,
+    year: Optional[int] = None,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+):
+    """
+    Build a query for synced registration reports (Back4App data only).
+    Supports filtering by make, model, year, and registration date range.
+    """
+    query = (
+        select(Car)
+        .join(Car.car_model)
+        .join(CarModel.make)
+        .where(Car.external_id.isnot(None))
+        .options(selectinload(Car.car_model).selectinload(CarModel.make))
+    )
+
+    if make:
+        query = query.where(func.lower(Make.name).like(f"%{make.strip().lower()}%"))
+    if model:
+        query = query.where(func.lower(CarModel.name).like(f"%{model.strip().lower()}%"))
+    if year is not None:
+        query = query.where(Car.year == year)
+    if date_from:
+        query = query.where(Car.created_at >= date_from)
+    if date_to:
+        query = query.where(Car.created_at <= date_to)
+
+    return query
+
+
+def car_to_report_dict(car: Car) -> dict:
+    """Map a Car ORM instance to a flat report response dict."""
+    return {
+        "id": car.id,
+        "name": car.name,
+        "year": car.year,
+        "make": car.car_model.make.name if car.car_model and car.car_model.make else "",
+        "model": car.car_model.name if car.car_model else "",
+        "category": car.category,
+        "created_at": car.created_at,
+        "updated_at": car.updated_at,
+    }
 
 
 # -------------------- SYNC FUNCTIONS (for Celery) -------------------- #

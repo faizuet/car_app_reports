@@ -5,9 +5,9 @@ from neo4j import AsyncGraphDatabase
 
 from app.core.config import config
 
-# --- SQLAlchemy (MySQL) ---
+# --- SQLAlchemy (PostgreSQL) ---
 async_engine = create_async_engine(
-    config.ASYNC_SQLALCHEMY_DATABASE_URI,  # uses .env values for MySQL
+    config.ASYNC_SQLALCHEMY_DATABASE_URI,
     echo=False,
     future=True,
 )

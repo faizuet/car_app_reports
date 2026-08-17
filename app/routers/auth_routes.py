@@ -49,7 +49,7 @@ async def signup(
     if existing_username.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
 
-    # Create user in MySQL
+    # Create user in PostgreSQL
     user = User.create(
         username=user_in.username.strip(),
         email=user_in.email.strip().lower(),
