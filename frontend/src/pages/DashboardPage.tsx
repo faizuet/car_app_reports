@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { FileSearch, Car, Database, Layers, ArrowRight } from "lucide-react";
+import { FileSearch, Car, Database, Layers, ArrowRight, AlertCircle, RotateCcw } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { searchReports } from "../api/reports";
 import { listCars } from "../api/cars";
@@ -12,23 +12,28 @@ export function DashboardPage() {
   const [totalReports, setTotalReports] = useState<number | null>(null);
   const [myCars, setMyCars] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadStats = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [reports, cars] = await Promise.all([
+        searchReports({ limit: 1 }),
+        listCars(1),
+      ]);
+      setTotalReports(reports.total);
+      setMyCars(cars.total);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load dashboard stats");
+      setTotalReports(null);
+      setMyCars(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function loadStats() {
-      try {
-        const [reports, cars] = await Promise.all([
-          searchReports({ limit: 1 }),
-          listCars(1),
-        ]);
-        setTotalReports(reports.total);
-        setMyCars(cars.total);
-      } catch {
-        setTotalReports(0);
-        setMyCars(0);
-      } finally {
-        setLoading(false);
-      }
-    }
     loadStats();
   }, []);
 
@@ -37,21 +42,18 @@ export function DashboardPage() {
       label: "Total Reports",
       value: totalReports?.toLocaleString() ?? "—",
       icon: Database,
-      color: "from-blue-500 to-blue-600",
       bg: "bg-blue-50 text-blue-600",
     },
     {
       label: "My Cars",
       value: myCars?.toString() ?? "—",
       icon: Car,
-      color: "from-emerald-500 to-emerald-600",
       bg: "bg-emerald-50 text-emerald-600",
     },
     {
       label: "Dataset Range",
       value: "2012–2022",
       icon: Layers,
-      color: "from-violet-500 to-violet-600",
       bg: "bg-violet-50 text-violet-600",
     },
   ];
@@ -62,6 +64,18 @@ export function DashboardPage() {
         title={`Welcome back, ${user?.display_name || user?.username}`}
         description="Search and explore car registration reports from the synced dataset."
       />
+
+      {error && (
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button onClick={loadStats} className="btn-secondary shrink-0 py-1.5 text-xs">
+            <RotateCcw className="h-3.5 w-3.5" /> Retry
+          </button>
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-3">
         {loading
@@ -123,7 +137,7 @@ export function DashboardPage() {
           {[
             { step: "1", title: "Set filters", desc: "Choose make, model, year, or date range" },
             { step: "2", title: "Search", desc: "Browse paginated registration reports" },
-            { step: "3", title: "Export", desc: "Use data for your analysis or records" },
+            { step: "3", title: "Manage cars", desc: "Register and track your own vehicles" },
           ].map(({ step, title, desc }) => (
             <div key={step} className="flex gap-3">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white">

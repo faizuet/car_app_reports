@@ -2,9 +2,9 @@
 
 ## 1. Overview
 
-This document describes the architecture, design decisions, and implementation of the **Car Registration Reports API**, built as a response to the Python Real World Challenge. The challenge specified Flask; this implementation uses **FastAPI**, which provides equivalent REST capabilities with built-in **Pydantic** validation (replacing Marshmallow) and automatic OpenAPI documentation.
+This document describes the architecture, design decisions, and implementation of the **Car Registration Reports** application, built as a response to the Python Real World Challenge. The challenge specified Flask; this implementation uses **FastAPI**, which provides equivalent REST capabilities with built-in **Pydantic** validation (replacing Marshmallow) and automatic OpenAPI documentation.
 
-The application allows users to register, log in, and search car registration reports that are synced daily from the Back4App public dataset into a local PostgreSQL database.
+The application allows users to register, log in, and search car registration reports that are synced daily from the Back4App public dataset into a local PostgreSQL database. A **React + TypeScript** frontend provides a full UI for auth, reports search, user cars, and profile management.
 
 ---
 
@@ -20,7 +20,7 @@ Routers (HTTP)  →  Services (business logic)  →  Models (SQLAlchemy ORM)
 
 | Layer | Location | Responsibility |
 |-------|----------|----------------|
-| **Entry point** | `app/main.py` | FastAPI app, router registration, lifespan hooks |
+| **Entry point** | `app/main.py` | FastAPI app, CORS, static uploads, router registration |
 | **Configuration** | `app/core/config.py` | Environment-driven settings (DB, JWT, Back4App, Celery) |
 | **Routers** | `app/routers/` | HTTP endpoints, request/response mapping |
 | **Schemas** | `app/schemas/` | Input/output validation and serialization |
@@ -28,6 +28,7 @@ Routers (HTTP)  →  Services (business logic)  →  Models (SQLAlchemy ORM)
 | **Services** | `app/utils/services.py` | Reusable DB operations (async for API, sync for Celery) |
 | **Background tasks** | `car_tasks/` | Celery worker and scheduled sync |
 | **Auth** | `app/deps/auth.py` | JWT creation, verification, password hashing |
+| **Frontend** | `frontend/` | React 18 + Vite + Tailwind UI |
 
 ### 2.2 Database Normalization
 
@@ -99,14 +100,28 @@ FastAPI was chosen for:
 
 The routing, blueprints, and request handling patterns map directly from Flask concepts to FastAPI routers.
 
-### 4.2 Neo4j Graph Mirror (Extension)
+### 4.2 React Frontend (Extension)
+
+The `frontend/` directory adds a professional UI beyond the challenge minimum:
+
+| Feature | Description |
+|---------|-------------|
+| Auth | Login, signup, JWT storage, 401 auto-logout, post-login redirect |
+| Reports | Filter by make/model/year/date, URL-synced filters, grid/list view, detail modal |
+| My Cars | Add, edit, delete user cars with make/model dropdowns from synced data |
+| Profile | Avatar upload, display name, bio, email, password change |
+
+Run via Docker (`docker compose up frontend`) or locally with `scripts/start_frontend.ps1`.
+
+### 4.3 Neo4j Graph Mirror (Extension)
 
 The codebase optionally mirrors users and cars into Neo4j for graph relationship queries. This is **beyond the challenge scope** but demonstrates hybrid storage patterns. The core challenge features work entirely through PostgreSQL.
 
-### 4.3 User-Owned Cars vs Synced Reports
+### 4.4 User-Owned Cars vs Synced Reports
 
 - **`GET /reports/`** — searches synced Back4App data (`external_id IS NOT NULL`)
 - **`GET /cars/`** — lists cars created by the authenticated user
+- **`GET /makes/`** — lists manufacturers from synced data (used by the Cars UI)
 
 This separation keeps the challenge's "reports" use case distinct from optional user CRUD features.
 
@@ -122,6 +137,9 @@ This separation keeps the challenge's "reports" use case distinct from optional 
 | Cursor pagination total count with filters | Count via subquery of the filtered base query |
 | Sync schedule was every 5 minutes | Changed Celery Beat to daily `crontab` per challenge spec |
 | REST API key vs Master key | Switched headers to `X-Parse-REST-API-Key` as documented |
+| MySQL → PostgreSQL migration | Rebuilt Alembic migrations for PostgreSQL |
+| Docker shell scripts on Windows | CRLF line-ending fix in `docker-compose.yaml` + `.gitattributes` |
+| Windows Celery worker | Use `--pool=solo` in local scripts |
 
 ---
 
@@ -129,17 +147,56 @@ This separation keeps the challenge's "reports" use case distinct from optional 
 
 See [README.md](./README.md) for full setup instructions.
 
-**Quick start with Docker:**
+### Quick start with Docker
 
 ```bash
 docker compose up --build
 ```
 
-**Test flow:**
+- API docs: http://localhost:8000/docs
+- Frontend: http://localhost:5173
 
-1. Sign up → Login → obtain JWT
-2. Trigger sync manually or wait for daily beat
-3. Call `GET /reports/?make=Toyota&year=2020` with Bearer token
+### Manual data sync (if reports are empty)
+
+```bash
+# With venv activated and DB/Redis running:
+celery -A car_tasks.celery_app call car_tasks.sync_cars.sync_car_data
+```
+
+Or via Python:
+
+```bash
+python -c "from car_tasks.sync_cars import sync_car_data; sync_car_data()"
+```
+
+### Test flow (API)
+
+1. **Sign up** — `POST /auth/signup` with `{ "username", "email", "password" }`
+2. **Login** — `POST /auth/login` → copy `access_token`
+3. **Search reports** — `GET /reports/?make=Toyota&year=2020` with `Authorization: Bearer <token>`
+4. **List makes** — `GET /makes/` (for Cars page dropdowns)
+
+Postman collection: `postman/Car_App_Reports.postman_collection.json`
+
+### Test flow (UI)
+
+1. Open http://localhost:5173
+2. Create account → log in
+3. Go to **Reports** → apply filters (URL updates automatically)
+4. Click a report card to view details
+5. Go to **My Cars** → add a car using the make/model dropdown
+6. Go to **Profile** → update info or upload avatar
+
+### Automated smoke tests
+
+Requires PostgreSQL running (e.g. `docker compose up db -d`):
+
+```bash
+pip install -r requirements.txt
+pytest
+```
+
+Tests cover: health check, auth-required routes, signup/login/profile, reports search, and makes list.
 
 ---
 
@@ -152,10 +209,13 @@ Commits should reflect incremental development steps, for example:
 3. Normalized car schema + Alembic migrations
 4. Celery sync task for Back4App dataset
 5. Reports search API with pagination
-6. Documentation (README + REPORT)
+6. React frontend (auth, reports, cars, profile)
+7. Documentation (README + REPORT) + smoke tests
 
 ---
 
 ## 8. Conclusion
 
 The project fulfills all challenge requirements using FastAPI: authenticated signup/login, daily background sync of 2012–2022 car data with upsert semantics, searchable reports API with date/make/model/year filters, Pydantic schema validation, normalized PostgreSQL storage, and cursor-based pagination. Docker Compose provides a reproducible environment for evaluation.
+
+The React frontend, profile management, makes API, and pytest smoke tests extend the project beyond the minimum scope while keeping the core challenge features clearly separated and documented.

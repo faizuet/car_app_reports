@@ -1,6 +1,10 @@
 import { apiRequest } from "./client";
 import type { User } from "../types";
 
+export async function getProfile(): Promise<User> {
+  return apiRequest<User>("/users/me");
+}
+
 export async function updateProfile(data: {
   username?: string;
   display_name?: string;

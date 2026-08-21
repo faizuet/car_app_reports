@@ -1,25 +1,25 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Search, RotateCcw, ChevronRight, Car, LayoutGrid, List } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Search, RotateCcw, ChevronRight, Car, LayoutGrid, List, AlertCircle } from "lucide-react";
 import { searchReports } from "../api/reports";
 import type { CarReport, ReportFilters } from "../types";
+import {
+  emptyReportFilters,
+  filtersFromSearchParams,
+  matchesQuickFilter,
+  searchParamsFromFilters,
+} from "../utils/reportFilters";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Spinner } from "../components/ui/Spinner";
 import { ReportCardSkeleton } from "../components/ui/Skeleton";
 import { EmptyState } from "../components/ui/EmptyState";
 import { FilterChips } from "../components/reports/FilterChips";
 import { ReportCard } from "../components/reports/ReportCard";
+import { ReportDetailModal } from "../components/reports/ReportDetailModal";
 import { useToast } from "../context/ToastContext";
 
-const emptyFilters: ReportFilters = {
-  make: "",
-  model: "",
-  year: "",
-  date_from: "",
-  date_to: "",
-  limit: 12,
-};
-
 const yearOptions = Array.from({ length: 11 }, (_, i) => 2012 + i);
+const VIEW_MODE_KEY = "reports_view_mode";
 
 const QUICK_FILTERS = [
   { label: "Toyota", filters: { make: "Toyota" } },
@@ -32,14 +32,33 @@ const QUICK_FILTERS = [
 
 export function ReportsPage() {
   const { toast } = useToast();
-  const [filters, setFilters] = useState<ReportFilters>(emptyFilters);
-  const [applied, setApplied] = useState<ReportFilters>(emptyFilters);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const applied = useMemo(
+    () => filtersFromSearchParams(searchParams),
+    [searchParams]
+  );
+
+  const [filters, setFilters] = useState<ReportFilters>(applied);
   const [items, setItems] = useState<CarReport[]>([]);
   const [total, setTotal] = useState(0);
   const [nextCursor, setNextCursor] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [selectedReport, setSelectedReport] = useState<CarReport | null>(null);
+  const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
+    const saved = localStorage.getItem(VIEW_MODE_KEY);
+    return saved === "list" ? "list" : "grid";
+  });
+
+  useEffect(() => {
+    setFilters(applied);
+  }, [applied]);
+
+  const applyFilters = (next: ReportFilters) => {
+    setSearchParams(searchParamsFromFilters(next));
+  };
 
   const fetchReports = useCallback(async (f: ReportFilters, append = false) => {
     if (append) setLoadingMore(true);
@@ -47,12 +66,19 @@ export function ReportsPage() {
 
     try {
       const data = await searchReports(f);
+      setFetchError(null);
       setTotal(data.total);
       setNextCursor(data.next_cursor);
       setItems((prev) => (append ? [...prev, ...data.items] : data.items));
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Failed to load reports", "error");
-      if (!append) setItems([]);
+      const message = err instanceof Error ? err.message : "Failed to load reports";
+      if (!append) {
+        setFetchError(message);
+        setItems([]);
+        setTotal(0);
+        setNextCursor(null);
+      }
+      toast(message, "error");
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -65,31 +91,34 @@ export function ReportsPage() {
 
   const handleSearch = (e: FormEvent) => {
     e.preventDefault();
-    setApplied({ ...filters, cursor: undefined });
+    applyFilters({ ...filters, cursor: undefined });
   };
 
   const applyQuickFilter = (preset: Partial<ReportFilters>) => {
-    const next = { ...emptyFilters, ...preset };
+    const next = { ...emptyReportFilters, ...preset };
     setFilters(next);
-    setApplied({ ...next, cursor: undefined });
+    applyFilters(next);
   };
 
   const handleReset = () => {
-    setFilters(emptyFilters);
-    setApplied(emptyFilters);
+    setFilters(emptyReportFilters);
+    setSearchParams({});
   };
 
   const removeFilter = (key: keyof ReportFilters) => {
     const next = { ...applied, [key]: "", cursor: undefined };
     setFilters(next);
-    setApplied(next);
+    applyFilters(next);
   };
 
   const loadMore = () => {
     if (!nextCursor) return;
-    const next = { ...applied, cursor: nextCursor };
-    fetchReports(next, true);
-    setApplied(next);
+    fetchReports({ ...applied, cursor: nextCursor }, true);
+  };
+
+  const changeViewMode = (mode: "grid" | "list") => {
+    setViewMode(mode);
+    localStorage.setItem(VIEW_MODE_KEY, mode);
   };
 
   return (
@@ -106,7 +135,7 @@ export function ReportsPage() {
             key={label}
             type="button"
             onClick={() => applyQuickFilter(preset)}
-            className="chip"
+            className={`chip ${matchesQuickFilter(applied, preset) ? "chip-active" : ""}`}
           >
             {label}
           </button>
@@ -116,10 +145,11 @@ export function ReportsPage() {
       <form onSubmit={handleSearch} className="card p-5 md:p-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-surface-800/50">
+            <label htmlFor="filter-make" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-surface-800/50">
               Make
             </label>
             <input
+              id="filter-make"
               className="input-field"
               placeholder="e.g. Toyota"
               value={filters.make}
@@ -127,10 +157,11 @@ export function ReportsPage() {
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-surface-800/50">
+            <label htmlFor="filter-model" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-surface-800/50">
               Model
             </label>
             <input
+              id="filter-model"
               className="input-field"
               placeholder="e.g. Corolla"
               value={filters.model}
@@ -138,10 +169,11 @@ export function ReportsPage() {
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-surface-800/50">
+            <label htmlFor="filter-year" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-surface-800/50">
               Year
             </label>
             <select
+              id="filter-year"
               className="input-field"
               value={filters.year}
               onChange={(e) => setFilters({ ...filters, year: e.target.value })}
@@ -153,10 +185,11 @@ export function ReportsPage() {
             </select>
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-surface-800/50">
+            <label htmlFor="filter-date-from" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-surface-800/50">
               Date from
             </label>
             <input
+              id="filter-date-from"
               type="datetime-local"
               className="input-field"
               value={filters.date_from}
@@ -164,10 +197,11 @@ export function ReportsPage() {
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-surface-800/50">
+            <label htmlFor="filter-date-to" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-surface-800/50">
               Date to
             </label>
             <input
+              id="filter-date-to"
               type="datetime-local"
               className="input-field"
               value={filters.date_to}
@@ -178,7 +212,7 @@ export function ReportsPage() {
             <button type="submit" className="btn-primary flex-1">
               <Search className="h-4 w-4" /> Search
             </button>
-            <button type="button" onClick={handleReset} className="btn-secondary px-3" title="Reset">
+            <button type="button" onClick={handleReset} className="btn-secondary px-3" aria-label="Reset filters">
               <RotateCcw className="h-4 w-4" />
             </button>
           </div>
@@ -191,6 +225,8 @@ export function ReportsPage() {
         <p className="text-sm text-surface-800/60">
           {loading ? (
             "Searching..."
+          ) : fetchError ? (
+            "Could not load reports"
           ) : (
             <>
               <span className="font-semibold text-surface-900">{total.toLocaleString()}</span>{" "}
@@ -203,13 +239,15 @@ export function ReportsPage() {
         </p>
         <div className="flex rounded-lg border border-surface-200 bg-white p-0.5">
           <button
-            onClick={() => setViewMode("grid")}
+            onClick={() => changeViewMode("grid")}
+            aria-label="Grid view"
             className={`rounded-md p-2 transition ${viewMode === "grid" ? "bg-brand-600 text-white" : "text-surface-800/60 hover:text-surface-900"}`}
           >
             <LayoutGrid className="h-4 w-4" />
           </button>
           <button
-            onClick={() => setViewMode("list")}
+            onClick={() => changeViewMode("list")}
+            aria-label="List view"
             className={`rounded-md p-2 transition ${viewMode === "list" ? "bg-brand-600 text-white" : "text-surface-800/60 hover:text-surface-900"}`}
           >
             <List className="h-4 w-4" />
@@ -223,6 +261,17 @@ export function ReportsPage() {
             <ReportCardSkeleton key={i} />
           ))}
         </div>
+      ) : fetchError ? (
+        <EmptyState
+          icon={AlertCircle}
+          title="Failed to load reports"
+          description={fetchError}
+          action={
+            <button onClick={() => fetchReports(applied)} className="btn-secondary">
+              <RotateCcw className="h-4 w-4" /> Try again
+            </button>
+          }
+        />
       ) : items.length === 0 ? (
         <EmptyState
           icon={Car}
@@ -238,7 +287,11 @@ export function ReportsPage() {
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {items.map((report) => (
-              <ReportCard key={report.id} report={report} />
+              <ReportCard
+                key={report.id}
+                report={report}
+                onSelect={setSelectedReport}
+              />
             ))}
           </div>
           {nextCursor && (
@@ -266,7 +319,20 @@ export function ReportsPage() {
               </thead>
               <tbody className="divide-y divide-surface-100">
                 {items.map((r) => (
-                  <tr key={r.id} className="hover:bg-surface-50/50">
+                  <tr
+                    key={r.id}
+                    className="cursor-pointer hover:bg-surface-50/50"
+                    onClick={() => setSelectedReport(r)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedReport(r);
+                      }
+                    }}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`View details for ${r.make} ${r.model} ${r.year}`}
+                  >
                     <td className="px-4 py-3 font-medium text-brand-600">{r.make}</td>
                     <td className="px-4 py-3 font-semibold">{r.model}</td>
                     <td className="px-4 py-3">
@@ -292,6 +358,11 @@ export function ReportsPage() {
           )}
         </>
       )}
+
+      <ReportDetailModal
+        report={selectedReport}
+        onClose={() => setSelectedReport(null)}
+      />
     </div>
   );
 }

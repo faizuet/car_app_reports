@@ -1,5 +1,11 @@
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: () => void): void {
+  unauthorizedHandler = handler;
+}
+
 export class ApiClientError extends Error {
   status: number;
 
@@ -52,6 +58,9 @@ export async function apiRequest<T>(
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
+    if (response.status === 401 && auth) {
+      unauthorizedHandler?.();
+    }
     let message = "Something went wrong";
     if (data?.detail) {
       message =

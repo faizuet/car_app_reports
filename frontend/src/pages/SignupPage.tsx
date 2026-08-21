@@ -1,11 +1,18 @@
-import { Navigate, Link } from "react-router-dom";
+import { Navigate, Link, useSearchParams } from "react-router-dom";
 import { Car, ArrowRight, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useState, type FormEvent } from "react";
 import { Spinner } from "../components/ui/Spinner";
+import { getSafeReturnPath } from "../utils/authRedirect";
 
 export function SignupPage() {
   const { signup, user, loading: authLoading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const returnTo = getSafeReturnPath(searchParams.get("returnTo"));
+  const loginLink = searchParams.get("returnTo")
+    ? `/login?returnTo=${encodeURIComponent(searchParams.get("returnTo")!)}`
+    : "/login";
+
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,7 +28,7 @@ export function SignupPage() {
     );
   }
 
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) return <Navigate to={returnTo} replace />;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -56,39 +63,50 @@ export function SignupPage() {
         <div className="card p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {error}
               </div>
             )}
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium">Username</label>
+              <label htmlFor="signup-username" className="mb-1.5 block text-sm font-medium">
+                Username
+              </label>
               <input
+                id="signup-username"
                 className="input-field"
                 placeholder="johndoe"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 minLength={3}
+                autoComplete="username"
               />
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium">Email</label>
+              <label htmlFor="signup-email" className="mb-1.5 block text-sm font-medium">
+                Email
+              </label>
               <input
+                id="signup-email"
                 type="email"
                 className="input-field"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                autoComplete="email"
               />
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium">Password</label>
+              <label htmlFor="signup-password" className="mb-1.5 block text-sm font-medium">
+                Password
+              </label>
               <div className="relative">
                 <input
+                  id="signup-password"
                   type={showPassword ? "text" : "password"}
                   className="input-field pr-10"
                   placeholder="Min. 6 characters"
@@ -96,10 +114,12 @@ export function SignupPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={6}
+                  autoComplete="new-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-800/40 hover:text-surface-800"
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -127,7 +147,7 @@ export function SignupPage() {
 
         <p className="mt-6 text-center text-sm text-surface-800/60">
           Already have an account?{" "}
-          <Link to="/login" className="font-semibold text-brand-600 hover:text-brand-700">
+          <Link to={loginLink} className="font-semibold text-brand-600 hover:text-brand-700">
             Sign in
           </Link>
         </p>

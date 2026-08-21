@@ -1,3 +1,14 @@
+export interface Make {
+  id: number;
+  name: string;
+}
+
+export interface CarModel {
+  id: number;
+  name: string;
+  make: Make;
+}
+
 export interface User {
   id: number;
   username: string;
