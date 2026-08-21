@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from "react";
 import { Calendar, Tag } from "lucide-react";
 import type { CarReport } from "../../types";
 
@@ -17,9 +18,30 @@ function getCategoryStyle(category: string | null) {
   return key ? categoryColors[key] : "bg-surface-100 text-surface-800";
 }
 
-export function ReportCard({ report }: { report: CarReport }) {
+interface ReportCardProps {
+  report: CarReport;
+  onSelect?: (report: CarReport) => void;
+}
+
+export function ReportCard({ report, onSelect }: ReportCardProps) {
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (onSelect && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      onSelect(report);
+    }
+  };
+
   return (
-    <article className="group card overflow-hidden transition hover:border-brand-200 hover:shadow-elevated">
+    <article
+      className={`group card overflow-hidden transition hover:border-brand-200 hover:shadow-elevated ${
+        onSelect ? "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" : ""
+      }`}
+      onClick={() => onSelect?.(report)}
+      onKeyDown={handleKeyDown}
+      tabIndex={onSelect ? 0 : undefined}
+      role={onSelect ? "button" : undefined}
+      aria-label={onSelect ? `View details for ${report.make} ${report.model} ${report.year}` : undefined}
+    >
       <div className="h-1 bg-gradient-to-r from-brand-500 to-brand-600 opacity-0 transition group-hover:opacity-100" />
       <div className="p-5">
         <div className="mb-3 flex items-start justify-between gap-2">

@@ -5,7 +5,6 @@ import {
   LayoutDashboard,
   LogOut,
   User,
-  Bell,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { Spinner } from "../ui/Spinner";
@@ -38,7 +37,10 @@ export function AppLayout() {
     );
   }
 
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) {
+    const returnTo = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/login?returnTo=${returnTo}`} replace />;
+  }
 
   return (
     <div className="flex min-h-screen bg-surface-50">
@@ -103,15 +105,6 @@ export function AppLayout() {
       <div className="flex flex-1 flex-col lg:pl-64">
         <header className="sticky top-0 z-20 hidden h-16 items-center justify-between border-b border-surface-200 bg-white/80 px-8 backdrop-blur lg:flex">
           <h2 className="font-display text-lg font-semibold text-surface-900">{pageTitle}</h2>
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              API Connected
-            </span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-100 text-surface-800">
-              <Bell className="h-4 w-4" />
-            </div>
-          </div>
         </header>
 
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-surface-200 bg-white/80 px-4 backdrop-blur lg:hidden">

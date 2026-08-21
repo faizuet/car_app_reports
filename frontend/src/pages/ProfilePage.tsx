@@ -10,8 +10,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { updateProfile } from "../api/auth";
-import { changePassword, uploadAvatar, removeAvatar } from "../api/profile";
+import { changePassword, updateProfile, uploadAvatar, removeAvatar } from "../api/profile";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Spinner } from "../components/ui/Spinner";
 import { ProfileAvatar } from "../components/profile/ProfileAvatar";
@@ -40,7 +39,9 @@ export function ProfilePage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const [loading, setLoading] = useState(false);
+  const [savingGeneral, setSavingGeneral] = useState(false);
+  const [savingAccount, setSavingAccount] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -54,7 +55,7 @@ export function ProfilePage() {
 
   const handleGeneralSave = async (e: FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSavingGeneral(true);
     try {
       await updateProfile({
         display_name: displayName || undefined,
@@ -67,13 +68,13 @@ export function ProfilePage() {
     } catch (err) {
       toast(err instanceof Error ? err.message : "Update failed", "error");
     } finally {
-      setLoading(false);
+      setSavingGeneral(false);
     }
   };
 
   const handleAccountSave = async (e: FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSavingAccount(true);
     try {
       await updateProfile({ email });
       await refreshUser();
@@ -81,7 +82,7 @@ export function ProfilePage() {
     } catch (err) {
       toast(err instanceof Error ? err.message : "Update failed", "error");
     } finally {
-      setLoading(false);
+      setSavingAccount(false);
     }
   };
 
@@ -91,7 +92,7 @@ export function ProfilePage() {
       toast("Passwords do not match", "error");
       return;
     }
-    setLoading(true);
+    setSavingPassword(true);
     try {
       await changePassword({ current_password: currentPassword, new_password: newPassword });
       setCurrentPassword("");
@@ -101,20 +102,30 @@ export function ProfilePage() {
     } catch (err) {
       toast(err instanceof Error ? err.message : "Password change failed", "error");
     } finally {
-      setLoading(false);
+      setSavingPassword(false);
     }
   };
 
   const handleAvatarUpload = async (file: File) => {
-    await uploadAvatar(file);
-    await refreshUser();
-    toast("Profile photo updated!", "success");
+    try {
+      await uploadAvatar(file);
+      await refreshUser();
+      toast("Profile photo updated!", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Upload failed", "error");
+      throw err;
+    }
   };
 
   const handleAvatarRemove = async () => {
-    await removeAvatar();
-    await refreshUser();
-    toast("Profile photo removed", "info");
+    try {
+      await removeAvatar();
+      await refreshUser();
+      toast("Profile photo removed", "info");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to remove photo", "error");
+      throw err;
+    }
   };
 
   const displayLabel = user?.display_name || user?.username || "User";
@@ -147,10 +158,19 @@ export function ProfilePage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-1 border-b border-surface-200 px-4 pt-4 sm:px-6">
+        <div
+          role="tablist"
+          aria-label="Profile settings"
+          className="flex flex-wrap gap-1 border-b border-surface-200 px-4 pt-4 sm:px-6"
+        >
           {tabs.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
+              type="button"
+              role="tab"
+              id={`tab-${id}`}
+              aria-selected={activeTab === id}
+              aria-controls={`panel-${id}`}
               onClick={() => setActiveTab(id)}
               className={`flex items-center gap-2 rounded-t-lg px-4 py-2.5 text-sm font-medium transition ${
                 activeTab === id
@@ -158,7 +178,7 @@ export function ProfilePage() {
                   : "text-surface-800/60 hover:text-surface-900"
               }`}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-4 w-4" aria-hidden="true" />
               {label}
             </button>
           ))}
@@ -166,6 +186,7 @@ export function ProfilePage() {
 
         <div className="p-6">
           {activeTab === "general" && (
+            <div role="tabpanel" id="panel-general" aria-labelledby="tab-general">
             <form onSubmit={handleGeneralSave} className="space-y-5">
               <div>
                 <label className="mb-1.5 flex items-center gap-2 text-sm font-medium">
@@ -220,15 +241,17 @@ export function ProfilePage() {
                 />
               </div>
 
-              <button type="submit" className="btn-primary" disabled={loading}>
-                {loading ? <Spinner size="sm" className="text-white" /> : (
+              <button type="submit" className="btn-primary" disabled={savingGeneral}>
+                {savingGeneral ? <Spinner size="sm" className="text-white" /> : (
                   <><Save className="h-4 w-4" /> Save changes</>
                 )}
               </button>
             </form>
+            </div>
           )}
 
           {activeTab === "account" && (
+            <div role="tabpanel" id="panel-account" aria-labelledby="tab-account">
             <form onSubmit={handleAccountSave} className="space-y-5">
               <div className="rounded-lg bg-surface-50 p-4 text-sm text-surface-800/70">
                 <p className="font-medium text-surface-900">Account information</p>
@@ -259,15 +282,17 @@ export function ProfilePage() {
                 </div>
               )}
 
-              <button type="submit" className="btn-primary" disabled={loading}>
-                {loading ? <Spinner size="sm" className="text-white" /> : (
+              <button type="submit" className="btn-primary" disabled={savingAccount}>
+                {savingAccount ? <Spinner size="sm" className="text-white" /> : (
                   <><Save className="h-4 w-4" /> Update email</>
                 )}
               </button>
             </form>
+            </div>
           )}
 
           {activeTab === "security" && (
+            <div role="tabpanel" id="panel-security" aria-labelledby="tab-security">
             <form onSubmit={handlePasswordSave} className="space-y-5">
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
                 Choose a strong password with at least 6 characters.
@@ -308,12 +333,13 @@ export function ProfilePage() {
                 />
               </div>
 
-              <button type="submit" className="btn-primary" disabled={loading}>
-                {loading ? <Spinner size="sm" className="text-white" /> : (
+              <button type="submit" className="btn-primary" disabled={savingPassword}>
+                {savingPassword ? <Spinner size="sm" className="text-white" /> : (
                   <><Shield className="h-4 w-4" /> Change password</>
                 )}
               </button>
             </form>
+            </div>
           )}
         </div>
       </div>

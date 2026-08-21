@@ -21,6 +21,22 @@ export async function createCar(data: {
   });
 }
 
+export async function updateCar(
+  id: number,
+  data: {
+    name?: string;
+    year?: number;
+    make_id?: number;
+    car_model_name?: string;
+    category?: string;
+  }
+): Promise<Car> {
+  return apiRequest<Car>(`/cars/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
 export async function deleteCar(id: number): Promise<void> {
   return apiRequest<void>(`/cars/${id}`, { method: "DELETE" });
 }

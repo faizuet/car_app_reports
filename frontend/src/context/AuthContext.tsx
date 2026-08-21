@@ -7,8 +7,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { getProfile, login as apiLogin, signup as apiSignup } from "../api/auth";
-import { clearToken } from "../api/client";
+import { login as apiLogin, signup as apiSignup } from "../api/auth";
+import { getProfile } from "../api/profile";
+import { clearToken, setUnauthorizedHandler } from "../api/client";
 import type { User } from "../types";
 
 interface AuthContextValue {
@@ -42,6 +43,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    setUnauthorizedHandler(() => {
+      clearToken();
+      setUser(null);
+    });
     refreshUser().finally(() => setLoading(false));
   }, [refreshUser]);
 
